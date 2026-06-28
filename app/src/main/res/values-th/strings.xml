@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="author_google_universe">Google Earth จักรวาลที่มีชีวิต</string>
-    <string name="globe_wallpaper_name">บลูมาร์เบิลมหัศจรรย์</string>
-    <string name="google_earth_weather_collection">Weather.com จักรวาลที่มีชีวิต</string>
-    <string name="moon_wallpaper_name">ภาพถ่ายดวงจันทร์</string>
-    <string name="pluto_description">ดาวพลูโตมี 2 สี ช่วงกลางวันเป็นโทนสีแดงเข้ม พอตกกลางคืนจะเปล่งประกายสีฟ้าลึกลับ</string>
-    <string name="pluto_wallpaper_name">ขอบฟ้าใหม่</string>
-</resources>

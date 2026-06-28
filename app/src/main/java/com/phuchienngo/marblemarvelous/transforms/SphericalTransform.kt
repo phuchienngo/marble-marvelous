@@ -1,9 +1,8 @@
 package com.phuchienngo.marblemarvelous.transforms
 
-import kotlin.math.*
-
 import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Vector3
+import kotlin.math.*
 
 class SphericalTransform {
     private var center = Vector3()
@@ -35,9 +34,16 @@ class SphericalTransform {
         updateCartesians()
     }
 
-    fun lerp(to: SphericalTransform, progress: Float) = lerp(this, to, progress)
+    fun lerp(
+        to: SphericalTransform,
+        progress: Float,
+    ) = lerp(this, to, progress)
 
-    fun lerp(from: SphericalTransform, to: SphericalTransform, progress: Float) {
+    fun lerp(
+        from: SphericalTransform,
+        to: SphericalTransform,
+        progress: Float,
+    ) {
         setRadius(MathUtils.lerp(from.r, to.r, progress))
         setPhi(MathUtils.lerpAngle(from.phi, to.phi, progress))
         setTheta(MathUtils.lerpAngle(from.theta, to.theta, progress))
@@ -55,12 +61,20 @@ class SphericalTransform {
 
     fun update() = updateCartesians()
 
-    fun set(transform: SphericalTransform) =
-        set(transform.theta, transform.phi, transform.r, transform.getCenter())
+    fun set(transform: SphericalTransform) = set(transform.theta, transform.phi, transform.r, transform.getCenter())
 
-    fun set(theta: Float, phi: Float, radius: Float) = set(theta, phi, radius, center)
+    fun set(
+        theta: Float,
+        phi: Float,
+        radius: Float,
+    ) = set(theta, phi, radius, center)
 
-    fun set(theta: Float, phi: Float, radius: Float, center: Vector3) {
+    fun set(
+        theta: Float,
+        phi: Float,
+        radius: Float,
+        center: Vector3,
+    ) {
         setRadius(radius)
         setPhi(phi)
         setTheta(theta)
@@ -81,21 +95,28 @@ class SphericalTransform {
     }
 
     fun getRadius(): Float = r
+
     fun getThetaRad(): Float = theta
+
     fun getThetaDeg(): Float = theta * 57.29578f
+
     fun getPhiRad(): Float = phi
+
     fun getCenter(): Vector3 = center
+
     fun getPhiDeg(): Float = phi * 57.29578f
 
     fun setFromCartesiansPosition(position: Vector3) = setFromCartesiansPosition(position, center)
 
-    fun setFromCartesiansPosition(position: Vector3, center: Vector3) {
+    fun setFromCartesiansPosition(
+        position: Vector3,
+        center: Vector3,
+    ) {
         this.center = center
         updateSphericalFromCartesian(position, center)
     }
 
-    override fun toString(): String =
-        "(" + getThetaDeg() + ", " + getPhiDeg() + ", " + getRadius() + "), center: " + getCenter()
+    override fun toString(): String = "(" + getThetaDeg() + ", " + getPhiDeg() + ", " + getRadius() + "), center: " + getCenter()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -119,7 +140,10 @@ class SphericalTransform {
         cartesian.x = (r * sin(theta.toDouble()) * sin(phi.toDouble())).toFloat() + center.x
     }
 
-    private fun updateSphericalFromCartesian(position: Vector3, center: Vector3) {
+    private fun updateSphericalFromCartesian(
+        position: Vector3,
+        center: Vector3,
+    ) {
         vectorTmp.set(position)
         vectorTmp.sub(center)
         r = vectorTmp.len()

@@ -1,15 +1,16 @@
 package com.phuchienngo.marblemarvelous.transforms
 
-import kotlin.math.*
-
 import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.math.Quaternion
 import com.badlogic.gdx.math.Vector3
+import kotlin.math.*
 
 class Transform : Matrix4() {
     @JvmField var position = Vector3()
+
     @JvmField var rotation = Quaternion()
+
     @JvmField var scale = Vector3(1.0f, 1.0f, 1.0f)
     private val zeroState = Quaternion()
     private val rotationRaw = Quaternion()
@@ -44,7 +45,10 @@ class Transform : Matrix4() {
         rotation.slerp(zeroState, clamp)
     }
 
-    fun lerp(transformTarget: Transform, alpha: Float) {
+    fun lerp(
+        transformTarget: Transform,
+        alpha: Float,
+    ) {
         val clmpAlpha = MathUtils.clamp(alpha, 0.0f, 1.0f)
         position.lerp(transformTarget.position, clmpAlpha)
         rotation.slerp(transformTarget.rotation, clmpAlpha)
@@ -57,7 +61,11 @@ class Transform : Matrix4() {
         scale.set(transformTarget.scale)
     }
 
-    override fun setToScaling(scaleX: Float, scaleY: Float, scaleZ: Float): Matrix4 {
+    override fun setToScaling(
+        scaleX: Float,
+        scaleY: Float,
+        scaleZ: Float,
+    ): Matrix4 {
         super.setToScaling(scaleX, scaleY, scaleZ)
         getScale(scale)
         return this

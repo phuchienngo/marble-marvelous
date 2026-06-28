@@ -16,6 +16,7 @@ import okhttp3.coroutines.executeAsync
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.util.LinkedHashMap
 import javax.inject.Inject
 import kotlin.math.PI
 import kotlin.math.asin
@@ -56,53 +57,59 @@ class OpenWeatherClouds
                 return false
             }
             return withContext(defaultDispatcher) generateFaces@{
-                // The world cloud layer is stored as ONE byte per pixel (cloud 0..255),
-                // not an ARGB bitmap. That is 4x smaller, so the source can be z=5
-                // (8192² -> 64MB ByteArray) instead of being capped at z=4 by a ~512MB
-                // ARGB bitmap. Tiles are streamed in and discarded immediately.
-                val field: ByteArray = downloadCloudField(apiKey) ?: return@generateFaces false
-                for (faceIndex in FACES.indices) {
-                    val face: Bitmap = renderFace(faceIndex, field, SRC, SRC)
-                    val ok: Boolean = writePng(face, File(context.cacheDir, FACES[faceIndex] + FACE_EXTENSION))
-                    face.recycle()
-                    if (!ok) {
-                        return@generateFaces false
-                    }
+                val tileDirectory = File(context.cacheDir, TILE_CACHE_DIRECTORY)
+                if (!resetTileDirectory(tileDirectory)) {
+                    return@generateFaces false
                 }
-                return@generateFaces true
+                try {
+                    val source =
+                        TiledCloudSource(
+                            tileDirectory = tileDirectory,
+                            tilesPerAxis = 1 shl SRC_ZOOM,
+                            tileSize = TILE,
+                            maxCachedTiles = TILE_CACHE_SIZE,
+                            tileLoader =
+                                TileLoader { x: Int, y: Int ->
+                                    return@TileLoader downloadCloudTileValues(apiKey, x, y)
+                                },
+                        )
+                    for (faceIndex in FACES.indices) {
+                        val face: Bitmap = renderFace(faceIndex, source) ?: return@generateFaces false
+                        val ok: Boolean = writePng(face, File(context.cacheDir, FACES[faceIndex] + FACE_EXTENSION))
+                        face.recycle()
+                        if (!ok) {
+                            return@generateFaces false
+                        }
+                    }
+                    return@generateFaces true
+                } finally {
+                    tileDirectory.deleteRecursively()
+                }
             }
         }
 
         /**
-         * Downloads every mercator tile at [SRC_ZOOM] and folds it into a single
-         * grayscale cloud field of [SRC]×[SRC] bytes. Each tile bitmap is decoded,
-         * reduced to cloud values and recycled before the next, so peak memory is the
-         * field plus one tile — not the whole world as ARGB.
+         * Downloads one mercator tile on demand and converts it to raw grayscale tile
+         * data. [TiledCloudSource] persists successful loads so later samples reuse
+         * disk/cache instead of hitting the network again.
          */
-        private suspend fun downloadCloudField(apiKey: String): ByteArray? {
-            val tiles: Int = 1 shl SRC_ZOOM
-            val field = ByteArray(SRC * SRC)
+        private suspend fun downloadCloudTileValues(
+            apiKey: String,
+            x: Int,
+            y: Int,
+        ): ByteArray? {
             val tilePixels = IntArray(TILE * TILE)
-            for (tx in 0 until tiles) {
-                for (ty in 0 until tiles) {
-                    val tile: Bitmap = downloadTile(SRC_ZOOM, tx, ty, apiKey) ?: return null
-                    try {
-                        tile.getPixels(tilePixels, 0, TILE, 0, 0, TILE, TILE)
-                        val baseX: Int = tx * TILE
-                        val baseY: Int = ty * TILE
-                        for (py in 0 until TILE) {
-                            val destRow: Int = (baseY + py) * SRC + baseX
-                            val srcRow: Int = py * TILE
-                            for (px in 0 until TILE) {
-                                field[destRow + px] = getCloudValue(tilePixels[srcRow + px]).toByte()
-                            }
-                        }
-                    } finally {
-                        tile.recycle()
-                    }
+            val tileValues = ByteArray(TILE * TILE)
+            val tile: Bitmap = downloadTile(SRC_ZOOM, x, y, apiKey) ?: return null
+            try {
+                tile.getPixels(tilePixels, 0, TILE, 0, 0, TILE, TILE)
+                for (pixelIndex in tilePixels.indices) {
+                    tileValues[pixelIndex] = getCloudValue(tilePixels[pixelIndex]).toByte()
                 }
+                return tileValues
+            } finally {
+                tile.recycle()
             }
-            return field
         }
 
         private suspend fun downloadTile(
@@ -149,12 +156,10 @@ class OpenWeatherClouds
             return null
         }
 
-        private fun renderFace(
+        private suspend fun renderFace(
             faceIndex: Int,
-            field: ByteArray,
-            srcW: Int,
-            srcH: Int,
-        ): Bitmap {
+            source: TiledCloudSource,
+        ): Bitmap? {
             val face: Bitmap = Bitmap.createBitmap(FACE, FACE, Bitmap.Config.ARGB_8888)
             val row: IntArray = IntArray(FACE)
             for (py in 0 until FACE) {
@@ -208,7 +213,13 @@ class OpenWeatherClouds
                     val latDeg: Double = Math.toDegrees(asin(max(-1.0, min(1.0, dy))))
                     var lonDeg = Math.toDegrees(atan2(dx, dz)) + LON_OFFSET_DEG
                     lonDeg = ((lonDeg + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
-                    row[px] = toCloudArgb(sampleMercator(field, srcW, srcH, latDeg, lonDeg))
+                    val cloud: Int =
+                        sampleMercator(source, latDeg, lonDeg)
+                            ?: run {
+                                face.recycle()
+                                return null
+                            }
+                    row[px] = toCloudArgb(cloud)
                 }
                 face.setPixels(row, 0, FACE, 0, py, FACE, 1)
             }
@@ -218,20 +229,18 @@ class OpenWeatherClouds
             return face
         }
 
-        private fun sampleMercator(
-            field: ByteArray,
-            w: Int,
-            h: Int,
+        private suspend fun sampleMercator(
+            source: TiledCloudSource,
             latDeg: Double,
             lonDeg: Double,
-        ): Int {
+        ): Int? {
             val clampedLat: Double = max(-MERC_LAT_LIMIT, min(MERC_LAT_LIMIT, latDeg))
             val latRad: Double = Math.toRadians(clampedLat)
             val xf: Double = (lonDeg + 180.0) / 360.0
             val yf: Double = (1.0 - ln(tan(latRad) + 1.0 / cos(latRad)) / PI) / 2.0
-            val sourceX: Double = xf * w - 0.5
-            val sourceY: Double = yf * h - 0.5
-            return sampleBilinearCloud(field, w, h, sourceX, sourceY)
+            val sourceX: Double = xf * source.worldSize - 0.5
+            val sourceY: Double = yf * source.worldSize - 0.5
+            return source.sample(sourceX, sourceY)
         }
 
         private fun writePng(
@@ -248,71 +257,171 @@ class OpenWeatherClouds
             }
         }
 
+        internal fun interface TileLoader {
+            suspend fun loadTile(
+                x: Int,
+                y: Int,
+            ): ByteArray?
+        }
+
+        internal class TiledCloudSource(
+            private val tileDirectory: File,
+            private val tilesPerAxis: Int,
+            private val tileSize: Int,
+            maxCachedTiles: Int,
+            private val tileLoader: TileLoader? = null,
+        ) {
+            val worldSize: Int = tilesPerAxis * tileSize
+            private val cache: LinkedHashMap<Long, ByteArray> =
+                object : LinkedHashMap<Long, ByteArray>(maxCachedTiles, LOAD_FACTOR, true) {
+                    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, ByteArray>?): Boolean = size > maxCachedTiles
+                }
+
+            init {
+                require(tilesPerAxis > 0)
+                require(tileSize > 0)
+                require(maxCachedTiles > 0)
+            }
+
+            suspend fun sample(
+                sourceX: Double,
+                sourceY: Double,
+            ): Int? {
+                val wrappedX: Double = wrapHorizontal(sourceX, worldSize)
+                val clampedY: Double = sourceY.coerceIn(0.0, (worldSize - 1).toDouble())
+                val x0: Int = floor(wrappedX).toInt()
+                val y0: Int = floor(clampedY).toInt()
+                val x1: Int = (x0 + 1) % worldSize
+                val y1: Int = minOf(y0 + 1, worldSize - 1)
+                val xWeight: Double = wrappedX - x0
+                val yWeight: Double = clampedY - y0
+
+                val topLeft: Int = getCloudValueAt(x0, y0) ?: return null
+                val topRight: Int = getCloudValueAt(x1, y0) ?: return null
+                val bottomLeft: Int = getCloudValueAt(x0, y1) ?: return null
+                val bottomRight: Int = getCloudValueAt(x1, y1) ?: return null
+                val top: Double = lerp(topLeft.toDouble(), topRight.toDouble(), xWeight)
+                val bottom: Double = lerp(bottomLeft.toDouble(), bottomRight.toDouble(), xWeight)
+                return lerp(top, bottom, yWeight)
+                    .roundToInt()
+                    .coerceIn(0, 255)
+            }
+
+            fun cachedTileCount(): Int = cache.size
+
+            private suspend fun getCloudValueAt(
+                x: Int,
+                y: Int,
+            ): Int? {
+                val tileX: Int = x / tileSize
+                val tileY: Int = y / tileSize
+                val localX: Int = x % tileSize
+                val localY: Int = y % tileSize
+                val tile: ByteArray = getTile(tileX, tileY) ?: return null
+                return tile[localY * tileSize + localX].toInt() and 0xFF
+            }
+
+            private suspend fun getTile(
+                x: Int,
+                y: Int,
+            ): ByteArray? {
+                val key: Long = tileKey(x, y)
+                val cached: ByteArray? = cache[key]
+                if (cached != null) {
+                    return cached
+                }
+                val loaded: ByteArray = loadTile(x, y) ?: return null
+                if (loaded.size < tileSize * tileSize) {
+                    Log.e(TAG, "Cloud tile $x/$y has ${loaded.size} bytes, expected ${tileSize * tileSize}")
+                    return null
+                }
+                cache[key] = loaded
+                return loaded
+            }
+
+            private suspend fun loadTile(
+                x: Int,
+                y: Int,
+            ): ByteArray? {
+                val file: File = tileFile(tileDirectory, x, y)
+                if (file.exists()) {
+                    return file.readBytes()
+                }
+                val loaded: ByteArray = tileLoader?.loadTile(x, y) ?: return null
+                return if (writeTile(file, loaded)) {
+                    loaded
+                } else {
+                    null
+                }
+            }
+
+            private fun writeTile(
+                file: File,
+                values: ByteArray,
+            ): Boolean {
+                return try {
+                    FileOutputStream(file).use writeTile@{ outputStream: FileOutputStream ->
+                        outputStream.write(values)
+                        return@writeTile
+                    }
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed writing cloud tile ${file.name}", e)
+                    false
+                }
+            }
+
+            private fun tileKey(
+                x: Int,
+                y: Int,
+            ): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
+        }
+
         companion object {
             private const val TAG: String = "OWClouds"
 
             /**
              * Mercator zoom for the source tiles. z=5 -> 32x32 = 1024 tiles = 8192px
              * whole world, giving ~2048px per equatorial cube face = native [FACE] detail.
-             * Affordable only because the world is held as a 1-byte/pixel field (64MB),
-             * not an ARGB bitmap (256MB); see [downloadCloudField].
+             * Tile bytes are cached on disk and read through [TiledCloudSource], avoiding
+             * a full 8192² source buffer in Java heap.
              */
             private const val SRC_ZOOM: Int = 5
             private const val TILE: Int = 256
-            private const val SRC: Int = TILE shl SRC_ZOOM
+
             // Cube face size. 2048 matches the day/night earth maps (2048²/face) so the
             // cloud cubemap renders without an extra GPU upscale, and at z=5 the source
             // actually carries ~2048px/equatorial-face so this is near-native detail.
             private const val FACE: Int = 2048
+            private const val TILE_CACHE_SIZE: Int = 32
+            private const val TILE_CACHE_DIRECTORY: String = "openweather_cloud_tiles"
             private const val MERC_LAT_LIMIT: Double = 85.05112878
             private const val LON_OFFSET_DEG: Double = 0.0
             private const val PNG_QUALITY: Int = 100
             private const val FACE_EXTENSION: String = ".png"
             private const val TILE_ATTEMPTS: Int = 3
             private const val TILE_RETRY_DELAY_MS: Long = 1500L
+
             // Center-heavy 3x3 kernel (1-2-1 / 2-8-2 / 1-2-1) = light denoise that
             // keeps cloud detail, instead of the old even 2-4-2 Gaussian which blurred
             // the real-time clouds noticeably softer than the 2048² earth map.
             private const val SMOOTH_KERNEL_ROUNDING: Int = 10
             private const val SMOOTH_KERNEL_WEIGHT: Int = 20
+            private const val LOAD_FACTOR: Float = 0.75f
 
             private val FACES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
 
-            /**
-             * Bilinearly samples the grayscale cloud [field] (one byte per pixel, 0..255)
-             * with horizontal wrap and vertical clamp. Returns a cloud value 0..255 (the
-             * caller packs it to ARGB); the field already holds cloud bytes so no per-tap
-             * luma/alpha reduction is needed here.
-             */
-            internal fun sampleBilinearCloud(
-                field: ByteArray,
-                width: Int,
-                height: Int,
-                sourceX: Double,
-                sourceY: Double,
-            ): Int {
-                require(width > 0)
-                require(height > 0)
-                require(field.size >= width * height)
+            internal fun tileFile(
+                directory: File,
+                x: Int,
+                y: Int,
+            ): File = File(directory, "$x-$y.raw")
 
-                val wrappedX: Double = wrapHorizontal(sourceX, width)
-                val clampedY: Double = sourceY.coerceIn(0.0, (height - 1).toDouble())
-                val x0: Int = floor(wrappedX).toInt()
-                val y0: Int = floor(clampedY).toInt()
-                val x1: Int = (x0 + 1) % width
-                val y1: Int = minOf(y0 + 1, height - 1)
-                val xWeight: Double = wrappedX - x0
-                val yWeight: Double = clampedY - y0
-
-                val topLeft: Int = field[y0 * width + x0].toInt() and 0xFF
-                val topRight: Int = field[y0 * width + x1].toInt() and 0xFF
-                val bottomLeft: Int = field[y1 * width + x0].toInt() and 0xFF
-                val bottomRight: Int = field[y1 * width + x1].toInt() and 0xFF
-                val top: Double = lerp(topLeft.toDouble(), topRight.toDouble(), xWeight)
-                val bottom: Double = lerp(bottomLeft.toDouble(), bottomRight.toDouble(), xWeight)
-                return lerp(top, bottom, yWeight)
-                    .roundToInt()
-                    .coerceIn(0, 255)
+            private fun resetTileDirectory(directory: File): Boolean {
+                if (directory.exists() && !directory.deleteRecursively()) {
+                    return false
+                }
+                return directory.mkdirs() || directory.isDirectory
             }
 
             internal fun smoothCloudFace(

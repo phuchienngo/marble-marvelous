@@ -15,11 +15,17 @@ object TimeUtils {
 
     @JvmStatic
     fun getTimeString(): String {
-        val cal = android.icu.util.Calendar.getInstance()
+        val cal =
+            android.icu.util.Calendar
+                .getInstance()
         cal.timeZone = TimeZone.getTimeZone("PST")
         return String.format(
-            Locale.US, "%04d%02d%02d%02d",
-            cal.get(1), cal.get(2) + 1, cal.get(5), cal.get(10),
+            Locale.US,
+            "%04d%02d%02d%02d",
+            cal.get(1),
+            cal.get(2) + 1,
+            cal.get(5),
+            cal.get(10),
         )
     }
 }

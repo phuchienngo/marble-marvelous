@@ -3,7 +3,6 @@ precision mediump float;
 uniform samplerCube dayMap;
 uniform samplerCube nightMap;
 uniform samplerCube cloudMap;
-uniform samplerCube stormsMap;
 uniform vec3 lightPosition;
 uniform vec4 terminatorColor1;
 uniform vec4 terminatorColor2;
@@ -125,7 +124,7 @@ void main()  {
     float fresnel = smoothstep(0.6, 1., eyeLight) * 0.02;
     base -= vec3(fresnel);
 
-    // Daylight, don't calculate either night or storms.
+    // Daylight, don't calculate night.
     if (lightDirection < .25 || lightIntensity != 1.0) {
         float nightIntensity = 1. - lightIntensity;
         float sunset = clamp(smoothstep( -.25, .1, -lightDirection) + nightIntensity, 0., 1.);
@@ -141,12 +140,6 @@ void main()  {
         nightDiff = mix(nightDiff, nightCloudLitColor, nightCloudOpacity);
         nightDiff *= smoothstep(0., 1., eyeLight);
         vec3 nightDiffNoLight = mix(nightDiff, min(nightDiff, vec3(0.08, 0.09, 0.13)), smoothstep(0., .13, length(nightDiff) / 1.73205080757));
-
-        // Add storms
-        float storms = textureCube( stormsMap, vCloudNormal ).r;
-        vec3 stormsVec = vec3(0.8, 0.8, 1.) * .9 * storms * smoothstep(0.35, 0.80, cloudCoverage);
-        stormsVec *= smoothstep(0.2, 1., eyeLight); // Don't display storms around the edge of the earth
-        nightDiff += stormsVec;
 
         // Add night pixels
         base = mix(base, nightDiffNoLight, sunset);

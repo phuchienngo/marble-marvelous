@@ -1,9 +1,8 @@
 package com.phuchienngo.marblemarvelous.mesh
 
-import kotlin.math.*
-
 import com.badlogic.gdx.graphics.Mesh
 import com.badlogic.gdx.graphics.VertexAttribute
+import kotlin.math.*
 
 object PlaneConstructor {
     private val uv = UVCoords()
@@ -13,8 +12,13 @@ object PlaneConstructor {
 
     @JvmStatic
     fun generatePlane(
-        width: Float, height: Float, centerX: Float, centerY: Float,
-        uSegments: Int, vSegments: Int, flipY: Boolean,
+        width: Float,
+        height: Float,
+        centerX: Float,
+        centerY: Float,
+        uSegments: Int,
+        vSegments: Int,
+        flipY: Boolean,
     ): Mesh {
         val w2 = width / 2.0f
         val h2 = width / 2.0f // NOTE: original uses width (preserved as-is)
@@ -25,11 +29,12 @@ object PlaneConstructor {
         for (row in 0..vSegments) {
             for (col in 0..uSegments) {
                 vertices[vi] = (centerX - w2) + ((col * width) / uSegments)
-                vertices[vi + 1] = if (flipY) {
-                    (centerY - h2) + ((row.toFloat() * height) / vSegments)
-                } else {
-                    (centerY + h2) - ((row * height) / vSegments)
-                }
+                vertices[vi + 1] =
+                    if (flipY) {
+                        (centerY - h2) + ((row.toFloat() * height) / vSegments)
+                    } else {
+                        (centerY + h2) - ((row * height) / vSegments)
+                    }
                 vertices[vi + 2] = 0.0f
                 vertices[vi + 3] = (col / uSegments).toFloat()
                 vertices[vi + 4] = 1.0f - (row / vSegments).toFloat()
@@ -57,22 +62,35 @@ object PlaneConstructor {
     }
 
     @JvmStatic
-    fun generatePlane(width: Float, height: Float, centerX: Float, centerY: Float): Mesh =
-        generatePlane(width, height, centerX, centerY, 1, 1, false)
+    fun generatePlane(
+        width: Float,
+        height: Float,
+        centerX: Float,
+        centerY: Float,
+    ): Mesh = generatePlane(width, height, centerX, centerY, 1, 1, false)
 
     @JvmStatic
-    fun generatePlane(width: Float, height: Float): Mesh = generatePlane(width, height, 0.0f, 0.0f)
+    fun generatePlane(
+        width: Float,
+        height: Float,
+    ): Mesh = generatePlane(width, height, 0.0f, 0.0f)
 
     @JvmStatic
-    fun generatePlane(width: Float, height: Float, uSegments: Int, vSegments: Int): Mesh =
-        generatePlane(width, height, 0.0f, 0.0f, uSegments, vSegments, false)
+    fun generatePlane(
+        width: Float,
+        height: Float,
+        uSegments: Int,
+        vSegments: Int,
+    ): Mesh = generatePlane(width, height, 0.0f, 0.0f, uSegments, vSegments, false)
 
     @JvmStatic
-    fun generatePlane(size: Int): Mesh =
-        generatePlane(size.toFloat(), size.toFloat(), size / 2.0f, size / 2.0f, 1, 1, true)
+    fun generatePlane(size: Int): Mesh = generatePlane(size.toFloat(), size.toFloat(), size / 2.0f, size / 2.0f, 1, 1, true)
 
     @JvmStatic
-    fun generateCircle(numPoints: Int, radius: Float): Mesh {
+    fun generateCircle(
+        numPoints: Int,
+        radius: Float,
+    ): Mesh {
         val vertices = FloatArray((numPoints + 1) * 5)
         val indices = ShortArray(numPoints * 3)
         vertices[0] = 0.0f
@@ -101,10 +119,19 @@ object PlaneConstructor {
         }
     }
 
-    class UVCoord(@JvmField var start: Float, @JvmField var end: Float)
+    class UVCoord(
+        @JvmField var start: Float,
+        @JvmField var end: Float,
+    )
 
-    class UVCoords(startU: Float, endU: Float, startV: Float, endV: Float) {
+    class UVCoords(
+        startU: Float,
+        endU: Float,
+        startV: Float,
+        endV: Float,
+    ) {
         @JvmField val u = UVCoord(startU, endU)
+
         @JvmField val v = UVCoord(startV, endV)
 
         constructor() : this(0.0f, 1.0f, 1.0f, 0.0f)

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<wallpaper xmlns:androidprv="http://schemas.android.com/apk/prv/res/android" xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="@string/moon_wallpaper_description"
-    android:thumbnail="@drawable/moon_preview"
-    android:author="@string/author_google_universe"
-    android:showMetadataInPreview="true"
-/>

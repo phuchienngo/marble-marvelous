@@ -7,30 +7,6 @@ import java.io.File
 
 class EngineDependencyInjectionTest {
     @Test
-    fun moonWallpaperServiceUsesEngineComponentFactory() {
-        val source: String =
-            readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/celestialBodies/wallpapers/variations/MoonWallpaperService.kt",
-            )
-
-        assertTrue(source.contains("DaggerEngineComponent"))
-        assertTrue(source.contains(".factory()"))
-        assertFalse(source.contains("return MoonEngine(app)"))
-    }
-
-    @Test
-    fun plutoWallpaperServiceUsesEngineComponentFactory() {
-        val source: String =
-            readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/celestialBodies/wallpapers/variations/PlutoWallpaperService.kt",
-            )
-
-        assertTrue(source.contains("DaggerEngineComponent"))
-        assertTrue(source.contains(".factory()"))
-        assertFalse(source.contains("return PlutoEngine(app)"))
-    }
-
-    @Test
     fun inputMultiplexerIsInjectedIntoWallpaperEngines() {
         val inputMultiplexerSource: String =
             readSource(
@@ -38,11 +14,11 @@ class EngineDependencyInjectionTest {
             )
         val userAwareEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/view/UserAwareWallpaperService.kt",
+                "src/main/java/com/phuchienngo/marblemarvelous/wallpaper/UserAwareWallpaperService.kt",
             )
         val baseEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/view/BaseWallpaperEngine.kt",
+                "src/main/java/com/phuchienngo/marblemarvelous/wallpaper/BaseWallpaperEngine.kt",
             )
 
         assertTrue(inputMultiplexerSource.contains("@WallpaperEngineScope"))
@@ -62,15 +38,11 @@ class EngineDependencyInjectionTest {
             )
         val baseEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/view/BaseWallpaperEngine.kt",
+                "src/main/java/com/phuchienngo/marblemarvelous/wallpaper/BaseWallpaperEngine.kt",
             )
         val earthEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/celestialBodies/EarthEngine.kt",
-            )
-        val planetEngineSource: String =
-            readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/celestialBodies/PlanetEngine.kt",
+                "src/main/java/com/phuchienngo/marblemarvelous/earth/EarthEngine.kt",
             )
 
         assertTrue(fpsThrottlerSource.contains("@WallpaperEngineScope"))
@@ -79,7 +51,34 @@ class EngineDependencyInjectionTest {
         assertFalse(baseEngineSource.contains("FPSThrottler()"))
         assertTrue(baseEngineSource.contains("private val fpsThrottler: FPSThrottler"))
         assertTrue(earthEngineSource.contains("BaseWallpaperEngine(inputMultiplexer, fpsThrottler)"))
-        assertTrue(planetEngineSource.contains("BaseWallpaperEngine(inputMultiplexer, fpsThrottler)"))
+    }
+
+    @Test
+    fun unusedPlanetWallpapersAreNotRegistered() {
+        val manifestSource: String = readSource("src/main/AndroidManifest.xml")
+        val engineComponentSource: String =
+            readSource(
+                "src/main/java/com/phuchienngo/marblemarvelous/di/EngineComponent.kt",
+            )
+
+        assertFalse(manifestSource.contains("MoonWallpaperService"))
+        assertFalse(manifestSource.contains("live_wallpaper_moon"))
+        assertFalse(manifestSource.contains("PlutoWallpaperService"))
+        assertFalse(manifestSource.contains("live_wallpaper_pluto"))
+        assertFalse(manifestSource.contains("MarsWallpaperService"))
+        assertFalse(engineComponentSource.contains("moonEngine"))
+        assertFalse(engineComponentSource.contains("plutoEngine"))
+        assertFalse(engineComponentSource.contains("marsEngine"))
+        assertFalse(
+            File("src/main/java/com/phuchienngo/marblemarvelous/earth/wallpapers/variations/MoonWallpaperService.kt").exists(),
+        )
+        assertFalse(
+            File("src/main/java/com/phuchienngo/marblemarvelous/earth/wallpapers/variations/PlutoWallpaperService.kt").exists(),
+        )
+        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/shader/MoonShader.kt").exists())
+        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/shader/PlutoShader.kt").exists())
+        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/PlanetEngine.kt").exists())
+        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/wallpapers/PlanetWallpaper.kt").exists())
     }
 
     private fun readSource(path: String): String = File(path).readText()

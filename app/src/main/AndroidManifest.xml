@@ -20,7 +20,7 @@
 
         <service
             android:label="@string/globe_wallpaper_name"
-            android:name="com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.EarthWallpaperService"
+            android:name="com.phuchienngo.marblemarvelous.earth.EarthWallpaperService"
             android:permission="android.permission.BIND_WALLPAPER"
             android:enabled="true"
             android:directBootAware="true"
@@ -32,46 +32,6 @@
                 android:name="android.service.wallpaper"
                 android:resource="@xml/live_wallpaper_earth"/>
         </service>
-        <service
-            android:label="@string/moon_wallpaper_name"
-            android:name="com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.variations.MoonWallpaperService"
-            android:permission="android.permission.BIND_WALLPAPER"
-            android:enabled="true"
-            android:directBootAware="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.wallpaper.WallpaperService"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.service.wallpaper"
-                android:resource="@xml/live_wallpaper_moon"/>
-        </service>
-        <service
-            android:label="@string/pluto_wallpaper_name"
-            android:name="com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.variations.PlutoWallpaperService"
-            android:permission="android.permission.BIND_WALLPAPER"
-            android:enabled="true"
-            android:directBootAware="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.wallpaper.WallpaperService"/>
-            </intent-filter>
-            <meta-data
-                android:name="android.service.wallpaper"
-                android:resource="@xml/live_wallpaper_pluto"/>
-        </service>
-
-        
-
-        
-
-        
-
-        
-
-        
-
-        
         
         <activity
             android:theme="@style/Theme.Transparent"

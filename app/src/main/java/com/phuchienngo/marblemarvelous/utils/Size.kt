@@ -2,15 +2,23 @@ package com.phuchienngo.marblemarvelous.utils
 
 import kotlin.math.*
 
-class Size(private var width: Float, private var height: Float) {
-
+class Size(
+    private var width: Float,
+    private var height: Float,
+) {
     constructor() : this(1.0f, 1.0f)
 
     fun getWidth(): Float = width
-    fun setWidth(width: Float) { this.width = width }
+
+    fun setWidth(width: Float) {
+        this.width = width
+    }
 
     fun getHeight(): Float = height
-    fun setHeight(height: Float) { this.height = height }
+
+    fun setHeight(height: Float) {
+        this.height = height
+    }
 
     fun set(size: Size) = set(size.width, size.height)
 
@@ -20,7 +28,10 @@ class Size(private var width: Float, private var height: Float) {
         height = weightTmp
     }
 
-    fun set(width: Float, height: Float) {
+    fun set(
+        width: Float,
+        height: Float,
+    ) {
         this.width = width
         this.height = height
     }
