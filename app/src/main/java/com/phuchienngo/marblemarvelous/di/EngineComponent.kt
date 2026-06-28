@@ -2,9 +2,7 @@ package com.phuchienngo.marblemarvelous.di
 
 import android.content.Context
 import com.badlogic.gdx.Application
-import com.phuchienngo.marblemarvelous.celestialBodies.EarthEngine
-import com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.variations.MoonWallpaperService
-import com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.variations.PlutoWallpaperService
+import com.phuchienngo.marblemarvelous.earth.EarthEngine
 import dagger.BindsInstance
 import dagger.Component
 
@@ -15,18 +13,13 @@ import dagger.Component
 @WallpaperEngineScope
 @Component(modules = [EngineModule::class])
 interface EngineComponent {
-
     fun earthEngineFactory(): EarthEngine.Factory
-
-    fun moonEngine(): MoonWallpaperService.MoonEngine
-
-    fun plutoEngine(): PlutoWallpaperService.PlutoEngine
 
     @Component.Factory
     interface Factory {
         fun create(
             @BindsInstance context: Context,
-            @BindsInstance app: Application
+            @BindsInstance app: Application,
         ): EngineComponent
     }
 }

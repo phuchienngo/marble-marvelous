@@ -4,10 +4,10 @@ import android.content.Context
 import com.phuchienngo.marblemarvelous.R
 import dagger.Module
 import dagger.Provides
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 @Module
 object EngineModule {
@@ -26,13 +26,13 @@ object EngineModule {
     @Provides
     @WallpaperEngineScope
     fun provideOkHttpClient(): OkHttpClient =
-        OkHttpClient.Builder()
+        OkHttpClient
+            .Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .build()
 
     @Provides
     @OpenWeatherApiKey
-    fun provideOpenWeatherApiKey(context: Context): String =
-        context.getString(R.string.openweather_api_key)
+    fun provideOpenWeatherApiKey(context: Context): String = context.getString(R.string.openweather_api_key)
 }

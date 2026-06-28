@@ -22,7 +22,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
-import java.util.Calendar
 import java.util.Date
 import javax.inject.Inject
 
@@ -33,7 +32,6 @@ class CloudsProvider(
     mainDispatcher: CoroutineDispatcher,
     private val callback: Callback,
 ) {
-    private val calendar: Calendar = Calendar.getInstance()
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + mainDispatcher)
 
     @JvmField var lastUpdate: Date? = null
@@ -93,10 +91,9 @@ class CloudsProvider(
         if (!ConnectionUtils.hasConnection(context)) {
             return
         }
-        calendar.time = Date()
-        calendar.add(11, -3)
-        if (lastUpdate == null || lastUpdate!!.before(calendar.time)) {
-            lastUpdate = Date()
+        val now = Date()
+        if (CloudRefreshPolicy.shouldRefresh(lastUpdate, now)) {
+            lastUpdate = now
             runCloudUpdate()
         }
     }

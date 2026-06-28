@@ -17,19 +17,44 @@ class TweenController {
     private var animating = false
 
     enum class Easing {
-        EXPO_IN_OUT, EXPO_OUT, EXPO_IN, LINEAR, QUART_OUT, QUAD_OUT, BACK_IN, BACK_OUT, BACK_IN_OUT
+        EXPO_IN_OUT,
+        EXPO_OUT,
+        EXPO_IN,
+        LINEAR,
+        QUART_OUT,
+        QUAD_OUT,
+        BACK_IN,
+        BACK_OUT,
+        BACK_IN_OUT,
     }
 
-    fun setTween(fromValue: Float, toValue: Float, duration: Float) =
-        setTween(fromValue, toValue, duration, 0.0f)
+    fun setTween(
+        fromValue: Float,
+        toValue: Float,
+        duration: Float,
+    ) = setTween(fromValue, toValue, duration, 0.0f)
 
-    fun setTween(fromValue: Float, toValue: Float, duration: Float, delay: Float) =
-        setTween(fromValue, toValue, duration, delay, easing)
+    fun setTween(
+        fromValue: Float,
+        toValue: Float,
+        duration: Float,
+        delay: Float,
+    ) = setTween(fromValue, toValue, duration, delay, easing)
 
-    fun setTween(fromValue: Float, toValue: Float, duration: Float, easing: Easing) =
-        setTween(fromValue, toValue, duration, 0.0f, easing)
+    fun setTween(
+        fromValue: Float,
+        toValue: Float,
+        duration: Float,
+        easing: Easing,
+    ) = setTween(fromValue, toValue, duration, 0.0f, easing)
 
-    fun setTween(fromValue: Float, toValue: Float, duration: Float, delay: Float, easing: Easing) {
+    fun setTween(
+        fromValue: Float,
+        toValue: Float,
+        duration: Float,
+        delay: Float,
+        easing: Easing,
+    ) {
         animating = false
         setInitValue(fromValue)
         setEndValue(toValue)
@@ -39,14 +64,26 @@ class TweenController {
         reset()
     }
 
-    fun to(toValue: Float, duration: Float, delay: Float, easing: Easing) {
+    fun to(
+        toValue: Float,
+        duration: Float,
+        delay: Float,
+        easing: Easing,
+    ) {
         setTween(transitionConverted, toValue, duration, delay, easing)
         start()
     }
 
-    fun to(toValue: Float, duration: Float, easing: Easing) = to(toValue, duration, 0.0f, easing)
+    fun to(
+        toValue: Float,
+        duration: Float,
+        easing: Easing,
+    ) = to(toValue, duration, 0.0f, easing)
 
-    fun to(toValue: Float, duration: Float) = to(toValue, duration, 0.0f, easing)
+    fun to(
+        toValue: Float,
+        duration: Float,
+    ) = to(toValue, duration, 0.0f, easing)
 
     fun setDuration(duration: Float) {
         this.duration = duration
@@ -135,15 +172,19 @@ class TweenController {
         transitionConverted = ((endValue - initValue) * transition) + initValue
     }
 
-    private fun easeTransition(elapsedTime: Float, duration: Float): Float = when (easing) {
-        Easing.LINEAR -> EasingFn.linear(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.QUAD_OUT -> EasingFn.quadEaseOut(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.QUART_OUT -> EasingFn.quartEaseOut(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.BACK_IN -> EasingFn.backEaseIn(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.BACK_OUT -> EasingFn.backEaseOut(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.BACK_IN_OUT -> EasingFn.backEaseInOut(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.EXPO_IN_OUT -> EasingFn.expoEaseInOut(elapsedTime, 0.0f, 1.0f, duration)
-        Easing.EXPO_IN -> EasingFn.expoEaseIn(elapsedTime, 0.0f, 1.0f, duration)
-        else -> EasingFn.expoEaseOut(elapsedTime, 0.0f, 1.0f, duration)
-    }
+    private fun easeTransition(
+        elapsedTime: Float,
+        duration: Float,
+    ): Float =
+        when (easing) {
+            Easing.LINEAR -> EasingFn.linear(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.QUAD_OUT -> EasingFn.quadEaseOut(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.QUART_OUT -> EasingFn.quartEaseOut(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.BACK_IN -> EasingFn.backEaseIn(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.BACK_OUT -> EasingFn.backEaseOut(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.BACK_IN_OUT -> EasingFn.backEaseInOut(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.EXPO_IN_OUT -> EasingFn.expoEaseInOut(elapsedTime, 0.0f, 1.0f, duration)
+            Easing.EXPO_IN -> EasingFn.expoEaseIn(elapsedTime, 0.0f, 1.0f, duration)
+            else -> EasingFn.expoEaseOut(elapsedTime, 0.0f, 1.0f, duration)
+        }
 }

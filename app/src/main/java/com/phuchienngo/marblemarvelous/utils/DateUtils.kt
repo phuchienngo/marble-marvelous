@@ -25,7 +25,10 @@ object DateUtils {
     }
 
     @JvmStatic
-    fun getUTC(date: Date, timeZone: String): Date? {
+    fun getUTC(
+        date: Date,
+        timeZone: String,
+    ): Date? {
         val sdf = SimpleDateFormat(DATEFORMAT, Locale.US)
         sdf.timeZone = TimeZone.getTimeZone(timeZone)
         return parseDate(sdf.format(fixedDate ?: date))

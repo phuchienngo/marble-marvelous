@@ -1,24 +1,20 @@
 package com.phuchienngo.marblemarvelous.weather
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 
 class OpenWeatherCloudsTest {
     @Test
-    fun sampleBilinearBlendsBetweenNeighboringCloudValues() {
-        // The field holds cloud bytes (0..255); midpoint of 0 and 255 -> 128.
-        val field: ByteArray = byteArrayOf(0, 255.toByte())
+    fun cloudRefreshDoesNotPrefetchEveryTileBeforeRendering() {
+        val source: String =
+            File("src/main/java/com/phuchienngo/marblemarvelous/weather/OpenWeatherClouds.kt")
+                .readText()
 
-        val actual: Int =
-            OpenWeatherClouds.sampleBilinearCloud(
-                field = field,
-                width = 2,
-                height = 1,
-                sourceX = 0.5,
-                sourceY = 0.0,
-            )
-
-        assertEquals(MID_CLOUD, actual)
+        assertFalse(source.contains("downloadCloudTiles(apiKey, tileDirectory)"))
     }
 
     @Test
@@ -55,15 +51,118 @@ class OpenWeatherCloudsTest {
         assertEquals(CORNER_SOFTENED, actual[0])
     }
 
+    @Test
+    fun tiledCloudSourceSamplesAcrossTileBoundaries() =
+        runBlocking {
+            val tileDirectory: File = createTileDirectory()
+            writeTile(tileDirectory, x = 0, y = 0, values = byteArrayOf(0, 10, 40, 50))
+            writeTile(tileDirectory, x = 1, y = 0, values = byteArrayOf(20, 30, 60, 70))
+            writeTile(tileDirectory, x = 0, y = 1, values = byteArrayOf(80, 90, 120, 130.toByte()))
+            writeTile(tileDirectory, x = 1, y = 1, values = byteArrayOf(100, 110, 140.toByte(), 150.toByte()))
+            val source =
+                OpenWeatherClouds.TiledCloudSource(
+                    tileDirectory = tileDirectory,
+                    tilesPerAxis = 2,
+                    tileSize = 2,
+                    maxCachedTiles = 2,
+                )
+
+            val acrossXAndY: Int? = source.sample(sourceX = 1.5, sourceY = 1.5)
+            val wrappedAcrossDateLine: Int? = source.sample(sourceX = 3.5, sourceY = 0.0)
+
+            assertEquals(BOUNDARY_CLOUD, acrossXAndY)
+            assertEquals(WRAPPED_CLOUD, wrappedAcrossDateLine)
+        }
+
+    @Test
+    fun tiledCloudSourceLoadsMissingTileOnlyWhenSampled() =
+        runBlocking {
+            val tileDirectory: File = createTileDirectory()
+            val requestedTiles: MutableList<String> = mutableListOf()
+            val source =
+                OpenWeatherClouds.TiledCloudSource(
+                    tileDirectory = tileDirectory,
+                    tilesPerAxis = 2,
+                    tileSize = 2,
+                    maxCachedTiles = 2,
+                    tileLoader =
+                        OpenWeatherClouds.TileLoader { x: Int, y: Int ->
+                            requestedTiles.add("$x-$y")
+                            return@TileLoader byteArrayOf(
+                                LOADED_CLOUD.toByte(),
+                                LOADED_CLOUD.toByte(),
+                                LOADED_CLOUD.toByte(),
+                                LOADED_CLOUD.toByte(),
+                            )
+                        },
+                )
+
+            val firstSample: Int? = source.sample(sourceX = 0.0, sourceY = 0.0)
+            val secondSample: Int? = source.sample(sourceX = 0.5, sourceY = 0.5)
+
+            assertEquals(LOADED_CLOUD, firstSample)
+            assertEquals(LOADED_CLOUD, secondSample)
+            assertEquals(listOf("0-0"), requestedTiles)
+            assertTrue(OpenWeatherClouds.tileFile(tileDirectory, x = 0, y = 0).exists())
+        }
+
+    @Test
+    fun tiledCloudSourceEvictsTilesAboveCacheLimit() =
+        runBlocking {
+            val tileDirectory: File = createTileDirectory()
+            writeTile(tileDirectory, x = 0, y = 0, values = byteArrayOf(0, 0, 0, 0))
+            writeTile(tileDirectory, x = 1, y = 0, values = byteArrayOf(10, 10, 10, 10))
+            writeTile(tileDirectory, x = 0, y = 1, values = byteArrayOf(20, 20, 20, 20))
+            writeTile(tileDirectory, x = 1, y = 1, values = byteArrayOf(30, 30, 30, 30))
+            val source =
+                OpenWeatherClouds.TiledCloudSource(
+                    tileDirectory = tileDirectory,
+                    tilesPerAxis = 2,
+                    tileSize = 2,
+                    maxCachedTiles = 2,
+                )
+
+            source.sample(sourceX = 0.0, sourceY = 0.0)
+            source.sample(sourceX = 2.0, sourceY = 0.0)
+            source.sample(sourceX = 0.0, sourceY = 2.0)
+
+            assertTrue(source.cachedTileCount() <= 2)
+        }
+
+    private fun createTileDirectory(): File {
+        val directory =
+            File(
+                System.getProperty("java.io.tmpdir"),
+                "openweather-clouds-test-${System.nanoTime()}",
+            )
+        directory.mkdirs()
+        return directory
+    }
+
+    private fun writeTile(
+        directory: File,
+        x: Int,
+        y: Int,
+        values: ByteArray,
+    ) {
+        OpenWeatherClouds
+            .tileFile(directory, x, y)
+            .writeBytes(values)
+    }
+
     companion object {
         private const val BLACK: Int = -0x1000000
         private const val WHITE: Int = -0x1
         private const val SEMI_TRANSPARENT_DARK: Int = 0x80404040.toInt()
+
         // Cloud values (0..255), not ARGB.
-        private const val MID_CLOUD: Int = 128
         private const val OPAQUE_WHITE_CLOUD: Int = 255
         private const val NO_CLOUD: Int = 0
         private const val SUBTLE_DARK_CLOUD: Int = 31
+        private const val BOUNDARY_CLOUD: Int = 75
+        private const val WRAPPED_CLOUD: Int = 15
+        private const val LOADED_CLOUD: Int = 42
+
         // Center-heavy 2-8-2 kernel (weight 20): white center on black neighbours ->
         // center=(255*8+10)/20=102 (0x66), edge=(255*2+10)/20=26 (0x1a), corner=13 (0x0d).
         private const val CENTER_SOFTENED: Int = -0x99999a

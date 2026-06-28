@@ -7,10 +7,18 @@ object ScreenSizeLimiter {
     const val MAX_WIDTH = 1080
 
     @JvmStatic
-    fun getScale(w: Int, h: Int): Float = getScale(w, h, MAX_WIDTH, MAX_HEIGHT)
+    fun getScale(
+        w: Int,
+        h: Int,
+    ): Float = getScale(w, h, MAX_WIDTH, MAX_HEIGHT)
 
     @JvmStatic
-    fun getScale(w: Int, h: Int, maxWidth: Int, maxHeight: Int): Float {
+    fun getScale(
+        w: Int,
+        h: Int,
+        maxWidth: Int,
+        maxHeight: Int,
+    ): Float {
         // Compare the screen's short side against maxWidth and long side against
         // maxHeight so the cap is orientation-independent. (The original decompiled
         // code had a broken no-op swap here that only affected landscape.)
@@ -22,10 +30,18 @@ object ScreenSizeLimiter {
     }
 
     @JvmStatic
-    fun getScaledSize(w: Int, h: Int): IntArray = getScaledSize(w, h, MAX_WIDTH, MAX_HEIGHT)
+    fun getScaledSize(
+        w: Int,
+        h: Int,
+    ): IntArray = getScaledSize(w, h, MAX_WIDTH, MAX_HEIGHT)
 
     @JvmStatic
-    fun getScaledSize(w: Int, h: Int, maxWidth: Int, maxHeight: Int): IntArray {
+    fun getScaledSize(
+        w: Int,
+        h: Int,
+        maxWidth: Int,
+        maxHeight: Int,
+    ): IntArray {
         val scale = getScale(w, h, maxWidth, maxHeight)
         return intArrayOf((w / scale).roundToInt(), (h / scale).roundToInt())
     }

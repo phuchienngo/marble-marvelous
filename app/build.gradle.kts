@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
 
@@ -36,19 +37,13 @@ android {
 
     buildFeatures {
         buildConfig = false
+        compose = true
     }
 
     lint {
         abortOnError = false
     }
 
-    // Generated protobuf sources (regenerated from src/main/proto via protoc) live in a
-    // separate root so they're not mixed with hand-written code in src/main/java.
-    sourceSets {
-        getByName("main") {
-            java.srcDir("src/main/generated/java")
-        }
-    }
 }
 
 kotlin {
@@ -58,13 +53,16 @@ kotlin {
 }
 
 dependencies {
+    // --- Jetpack Compose (small Android UI surfaces such as runtime-permission screens) ---
+    implementation(platform("androidx.compose:compose-bom:2026.06.00"))
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.ui:ui")
+
     // --- libGDX 1.14.2 (native libgdx.so from gdx-platform natives in jniLibs) ---
     implementation("com.badlogicgames.gdx:gdx:1.14.2")
     implementation("com.badlogicgames.gdx:gdx-backend-android:1.14.2")
-
-    // --- Protobuf javalite runtime (StormProtos regenerated from
-    // app/src/main/proto/storm_locations.proto via protoc 25.5 --java_out=lite:) ---
-    implementation("com.google.protobuf:protobuf-javalite:4.35.1")
 
     // --- Kotlin coroutines (background weather fetches) ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
