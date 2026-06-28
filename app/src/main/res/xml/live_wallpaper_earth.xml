@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wallpaper xmlns:androidprv="http://schemas.android.com/apk/prv/res/android" xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/globe_wallpaper_description"
+    android:thumbnail="@drawable/earth_preview"
+    android:author="@string/google_earth_weather_collection"
+    android:showMetadataInPreview="true"
+/>

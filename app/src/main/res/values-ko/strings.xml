@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google 어스, 실시간 우주</string>
+    <string name="globe_wallpaper_name">경이로운 지구</string>
+    <string name="google_earth_weather_collection">Weather.com, 실시간 우주</string>
+    <string name="moon_wallpaper_name">달의 모습</string>
+    <string name="pluto_description">명왕성의 두 얼굴을 지켜보세요. 낮에는 풍부한 붉은 빛을, 밤에는 신비로운 푸른 빛을 즐기실 수 있습니다.</string>
+    <string name="pluto_wallpaper_name">새로운 지평</string>
+</resources>

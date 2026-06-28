@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google Earth, živo vesolje</string>
+    <string name="globe_wallpaper_name">Neverjetna frnikola</string>
+    <string name="google_earth_weather_collection">Weather.com, živo vesolje</string>
+    <string name="moon_wallpaper_name">Lunin posnetek</string>
+    <string name="pluto_description">Pluton kaže dva obraza. Podnevi žari v močnih odtenkih rdeče, ponoči pa sije v skrivnostnih odtenkih modre.</string>
+    <string name="pluto_wallpaper_name">Nova obzorja</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google Earth, Żyjący wszechświat</string>
+    <string name="globe_wallpaper_name">Niebieska planeta</string>
+    <string name="google_earth_weather_collection">Weather.com, Żyjący wszechświat</string>
+    <string name="moon_wallpaper_name">Zdjęcie Księżyca</string>
+    <string name="pluto_description">Pluton pokazuje dwa oblicza – głębokie odcienie czerwieni w ciągu dnia i tajemniczy błękit nocą.</string>
+    <string name="pluto_wallpaper_name">Nowe horyzonty</string>
+</resources>

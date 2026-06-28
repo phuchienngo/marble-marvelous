@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google Earth: Universo en movimiento</string>
+    <string name="globe_wallpaper_name">Esfera maravillosa</string>
+    <string name="google_earth_weather_collection">Weather.com (universo en movimiento)</string>
+    <string name="moon_wallpaper_name">Fotografía de la luna</string>
+    <string name="pluto_description">Plutón muestra sus dos caras. Disfruta de los tonos rojizos del día y el misterioso resplandor azul nocturno.</string>
+    <string name="pluto_wallpaper_name">Nuevos horizontes</string>
+</resources>

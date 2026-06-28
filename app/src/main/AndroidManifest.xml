@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-feature
+        android:name="android.software.live_wallpaper"
+        android:required="true"/>
+    <uses-feature
+        android:glEsVersion="0x30001"
+        android:required="true"/>
+    <application
+        android:theme="@style/wallpapersTheme"
+        android:label="@string/app_name"
+        android:testOnly="false"
+        android:allowBackup="true"
+        android:supportsRtl="true">
+
+
+        <service
+            android:label="@string/globe_wallpaper_name"
+            android:name="com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.EarthWallpaperService"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:enabled="true"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/live_wallpaper_earth"/>
+        </service>
+        <service
+            android:label="@string/moon_wallpaper_name"
+            android:name="com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.variations.MoonWallpaperService"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:enabled="true"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/live_wallpaper_moon"/>
+        </service>
+        <service
+            android:label="@string/pluto_wallpaper_name"
+            android:name="com.phuchienngo.marblemarvelous.celestialBodies.wallpapers.variations.PlutoWallpaperService"
+            android:permission="android.permission.BIND_WALLPAPER"
+            android:enabled="true"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/live_wallpaper_pluto"/>
+        </service>
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+        
+        <activity
+            android:theme="@style/Theme.Transparent"
+            android:label="@string/permissions_activity"
+            android:name="com.phuchienngo.marblemarvelous.permissions.PermissionsActivity"
+            android:screenOrientation="portrait"/>
+    </application>
+</manifest>

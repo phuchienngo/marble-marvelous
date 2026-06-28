@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google Earth, ຈັກກະວານທີ່ມີຊີວິດ</string>
+    <string name="globe_wallpaper_name">ຫີນອ່ອນແສນມະຫັດສະຈັນ</string>
+    <string name="google_earth_weather_collection">Weather.com, ຈັກກະວານທີ່ມີຊີວິດ</string>
+    <string name="moon_wallpaper_name">ຮູບຖ່າຍດວງເດືອນ</string>
+    <string name="pluto_description">ດາວພລູໂຕມີສອງສີ. ຕອນກາງເວັນເປັນໂທນສີແດງເຂັ້ມ ແລະ ຕອນກາງຄືນຈະເປັ່ງປະກາຍສີຟ້າທີ່ເລິກລັບ.</string>
+    <string name="pluto_wallpaper_name">ຂອບຟ້າໃໝ່</string>
+</resources>

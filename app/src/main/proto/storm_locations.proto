@@ -1,0 +1,19 @@
+syntax = "proto2";
+
+package marblemarvelous.weather;
+
+option java_package = "com.phuchienngo.marblemarvelous.weather";
+option java_outer_classname = "StormProtos";
+option optimize_for = LITE_RUNTIME;
+
+// Lightning-strike locations served by the (now dead) weather.com endpoint.
+// Reconstructed from the original decompiled StormProtos.java so the code can be
+// regenerated from source instead of hand-patched.
+message StormLocations {
+  repeated LatLng locations = 1;
+
+  message LatLng {
+    optional float lat_deg = 1;
+    optional float lng_deg = 2;
+  }
+}

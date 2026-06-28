@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google Earth, Canlı Aləm</string>
+    <string name="globe_wallpaper_name">Möhtəşəm Mərmər</string>
+    <string name="google_earth_weather_collection">Weather.com, Canlı Aləm</string>
+    <string name="moon_wallpaper_name">Ay Çəkimi</string>
+    <string name="pluto_description">Pluton hər iki üzünü göstərir. Gün boyunca tünd-qırmızı tonlardan, gecələr isə sirli mavi parlaqlıqdan zövq alın.</string>
+    <string name="pluto_wallpaper_name">Yeni Üfüq</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="author_google_universe">Google Earth, ცოცხალი სამყარო</string>
+    <string name="globe_wallpaper_name">გასაოცარი მარმარილო</string>
+    <string name="google_earth_weather_collection">Weather.com, ცოცხალი სამყარო</string>
+    <string name="moon_wallpaper_name">მთვარის ხედი</string>
+    <string name="pluto_description">პლუტონი თავის ორ განსხვავებულ სახეს გვიჩვენებს. დატკბით წითელი ტონალობის ფერებით დღის განმავლობაში, ღამით კი იდუმალი ლურჯი სიკაშკაშით შეიქციეთ თავი.</string>
+    <string name="pluto_wallpaper_name">ახალი ჰორიზონტები</string>
+</resources>
