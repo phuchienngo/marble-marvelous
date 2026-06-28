@@ -7,13 +7,13 @@ import android.content.IntentFilter
 import java.util.concurrent.atomic.AtomicBoolean
 
 abstract class ViewController internal constructor(
-    @JvmField protected val context: Context,
+    @JvmField protected val context: Context
 ) {
     private val broadcastReceiver: BroadcastReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(
                 context: Context,
-                intent: Intent,
+                intent: Intent
             ) {
                 val action: String = intent.action ?: return
                 onBroadcastReceived(context, intent, action)
@@ -30,7 +30,7 @@ abstract class ViewController internal constructor(
     protected abstract fun onBroadcastReceived(
         context: Context,
         intent: Intent,
-        action: String,
+        action: String
     )
 
     protected abstract fun onRegister(fireStraightAway: Boolean): IntentFilter
@@ -70,14 +70,14 @@ abstract class ViewController internal constructor(
     protected open fun registerReceiver(
         context: Context,
         receiver: BroadcastReceiver,
-        filter: IntentFilter,
+        filter: IntentFilter
     ) {
         context.registerReceiver(receiver, filter)
     }
 
     protected open fun unregisterReceiver(
         context: Context,
-        receiver: BroadcastReceiver,
+        receiver: BroadcastReceiver
     ) {
         context.unregisterReceiver(receiver)
     }

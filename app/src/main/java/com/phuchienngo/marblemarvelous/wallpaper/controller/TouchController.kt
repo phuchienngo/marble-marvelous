@@ -10,10 +10,10 @@ import kotlin.math.min
 class TouchController
     @Inject
     constructor(
-        private val listener: TouchListener,
+        private val listener: TouchListener
     ) {
         enum class TouchType(
-            val value: String,
+            val value: String
         ) {
             DOWN("DOWN"),
             UP("UP"),
@@ -43,7 +43,7 @@ class TouchController
                 mLastTouchPositionX[idx].toInt(),
                 mLastTouchPositionY[idx].toInt(),
                 idx,
-                TouchType.DOWN,
+                TouchType.DOWN
             )
         }
 
@@ -58,7 +58,7 @@ class TouchController
                 mLastTouchPositionX[idx].toInt(),
                 mLastTouchPositionY[idx].toInt(),
                 idx,
-                TouchType.UP,
+                TouchType.UP
             )
         }
 
@@ -72,7 +72,7 @@ class TouchController
                         mLastTouchPositionX[i].toInt(),
                         mLastTouchPositionY[i].toInt(),
                         i,
-                        TouchType.MOVE,
+                        TouchType.MOVE
                     )
                 }
             }

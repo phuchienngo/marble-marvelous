@@ -1,12 +1,13 @@
 package com.phuchienngo.marblemarvelous.location
 
+import com.badlogic.gdx.math.Vector2
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LocationFallbackTest {
     @Test
     fun fromUtcOffsetMapsVietnamOffsetToEastLongitude() {
-        val location = LocationFallback.fromUtcOffset(VIETNAM_OFFSET_MILLIS)
+        val location: Vector2 = LocationFallback.fromUtcOffset(VIETNAM_OFFSET_MILLIS)
 
         assertEquals(105.0f, location.x, EPSILON)
         assertEquals(0.0f, location.y, EPSILON)

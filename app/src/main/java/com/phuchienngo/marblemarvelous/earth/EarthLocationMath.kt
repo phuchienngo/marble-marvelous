@@ -15,14 +15,14 @@ object EarthLocationMath {
         longitudeDegrees: Float,
         latitudeDegrees: Float,
         radius: Float,
-        earthTransform: Matrix4,
+        earthTransform: Matrix4
     ): Vector3 {
         val latitudeRadians: Double = Math.toRadians(latitudeDegrees.toDouble())
         val longitudeRadians: Double = Math.toRadians(longitudeDegrees.toDouble())
         return Vector3(
             cos(latitudeRadians).toFloat() * sin(longitudeRadians).toFloat(),
             sin(latitudeRadians).toFloat(),
-            cos(latitudeRadians).toFloat() * cos(longitudeRadians).toFloat(),
+            cos(latitudeRadians).toFloat() * cos(longitudeRadians).toFloat()
         ).scl(radius).rot(earthTransform)
     }
 
@@ -30,7 +30,7 @@ object EarthLocationMath {
         longitudeDegrees: Float,
         latitudeDegrees: Float,
         utcDayRatio: Float,
-        sunDeclinationDegrees: Float,
+        sunDeclinationDegrees: Float
     ): Float {
         val earthTransform: Matrix4 = Matrix4().idt().rotate(Vector3.Y, FULL_ROTATION_DEGREES * utcDayRatio)
         val surface: Vector3 = locationSurface(longitudeDegrees, latitudeDegrees, UNIT_RADIUS, earthTransform).nor()

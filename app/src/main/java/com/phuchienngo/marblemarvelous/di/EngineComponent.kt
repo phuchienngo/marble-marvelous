@@ -19,7 +19,7 @@ interface EngineComponent {
     interface Factory {
         fun create(
             @BindsInstance context: Context,
-            @BindsInstance app: Application,
+            @BindsInstance app: Application
         ): EngineComponent
     }
 }

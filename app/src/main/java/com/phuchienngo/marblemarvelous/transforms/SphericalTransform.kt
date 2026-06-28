@@ -2,15 +2,18 @@ package com.phuchienngo.marblemarvelous.transforms
 
 import com.badlogic.gdx.math.MathUtils
 import com.badlogic.gdx.math.Vector3
-import kotlin.math.*
+import kotlin.math.acos
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 class SphericalTransform {
     private var center = Vector3()
-    private val vectorTmp = Vector3()
+    private val vectorTmp: Vector3 = Vector3()
     private var theta = 0.0f
     private var phi = 0.0f
     private var r = 1.0f
-    private val cartesian = Vector3()
+    private val cartesian: Vector3 = Vector3()
 
     constructor(thetaRad: Float, phiRad: Float, radius: Float) :
         this(thetaRad, phiRad, radius, Vector3.Zero)
@@ -36,13 +39,13 @@ class SphericalTransform {
 
     fun lerp(
         to: SphericalTransform,
-        progress: Float,
+        progress: Float
     ) = lerp(this, to, progress)
 
     fun lerp(
         from: SphericalTransform,
         to: SphericalTransform,
-        progress: Float,
+        progress: Float
     ) {
         setRadius(MathUtils.lerp(from.r, to.r, progress))
         setPhi(MathUtils.lerpAngle(from.phi, to.phi, progress))
@@ -66,14 +69,14 @@ class SphericalTransform {
     fun set(
         theta: Float,
         phi: Float,
-        radius: Float,
+        radius: Float
     ) = set(theta, phi, radius, center)
 
     fun set(
         theta: Float,
         phi: Float,
         radius: Float,
-        center: Vector3,
+        center: Vector3
     ) {
         setRadius(radius)
         setPhi(phi)
@@ -110,7 +113,7 @@ class SphericalTransform {
 
     fun setFromCartesiansPosition(
         position: Vector3,
-        center: Vector3,
+        center: Vector3
     ) {
         this.center = center
         updateSphericalFromCartesian(position, center)
@@ -119,9 +122,13 @@ class SphericalTransform {
     override fun toString(): String = "(" + getThetaDeg() + ", " + getPhiDeg() + ", " + getRadius() + "), center: " + getCenter()
 
     override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other == null || javaClass != other.javaClass) return false
-        val transform = other as SphericalTransform
+        if (this === other) {
+            return true
+        }
+        if (other == null || javaClass != other.javaClass) {
+            return false
+        }
+        val transform: SphericalTransform = other as SphericalTransform
         return transform.theta == theta && transform.phi == phi && transform.r == r &&
             center == transform.center
     }
@@ -142,7 +149,7 @@ class SphericalTransform {
 
     private fun updateSphericalFromCartesian(
         position: Vector3,
-        center: Vector3,
+        center: Vector3
     ) {
         vectorTmp.set(position)
         vectorTmp.sub(center)
@@ -152,7 +159,7 @@ class SphericalTransform {
     }
 
     companion object {
-        const val DEG_TO_RAD = 0.017453292f
-        const val RADIANS_TO_DEG = 57.29578f
+        const val DEG_TO_RAD: Float = 0.017453292f
+        const val RADIANS_TO_DEG: Float = 57.29578f
     }
 }

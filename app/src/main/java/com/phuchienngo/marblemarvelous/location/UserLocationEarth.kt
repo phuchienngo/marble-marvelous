@@ -21,7 +21,7 @@ import javax.inject.Inject
 class UserLocationEarth
     @Inject
     constructor(
-        private val context: Context,
+        private val context: Context
     ) : PermissionsListener {
         private val locationManager: LocationManager =
             context.getSystemService("location") as LocationManager

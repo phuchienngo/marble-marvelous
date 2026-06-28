@@ -5,7 +5,7 @@ import java.util.Date
 internal object CloudRefreshPolicy {
     fun shouldRefresh(
         lastUpdate: Date?,
-        now: Date,
+        now: Date
     ): Boolean {
         if (lastUpdate == null) {
             return true

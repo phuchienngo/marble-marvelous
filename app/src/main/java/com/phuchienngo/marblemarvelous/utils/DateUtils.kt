@@ -9,9 +9,9 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 object DateUtils {
-    private const val DATEFORMAT = "yyyy-MM-dd HH:mm:ss"
-    const val MILLIS_IN_A_DAY = 8.64E7f
-    const val MINUTES_TO_MILLIS = 60000.0f
+    private const val DATEFORMAT: String = "yyyy-MM-dd HH:mm:ss"
+    const val MILLIS_IN_A_DAY: Float = 8.64E7f
+    const val MINUTES_TO_MILLIS: Float = 60000.0f
     private var fixedDate: Date? = null
 
     @JvmStatic
@@ -19,7 +19,7 @@ object DateUtils {
 
     @JvmStatic
     fun getUTC(date: Date): Date? {
-        val sdf = SimpleDateFormat(DATEFORMAT, Locale.US)
+        val sdf: SimpleDateFormat = SimpleDateFormat(DATEFORMAT, Locale.US)
         sdf.timeZone = TimeZone.getTimeZone("UTC")
         return parseDate(sdf.format(fixedDate ?: date))
     }
@@ -27,33 +27,33 @@ object DateUtils {
     @JvmStatic
     fun getUTC(
         date: Date,
-        timeZone: String,
+        timeZone: String
     ): Date? {
-        val sdf = SimpleDateFormat(DATEFORMAT, Locale.US)
+        val sdf: SimpleDateFormat = SimpleDateFormat(DATEFORMAT, Locale.US)
         sdf.timeZone = TimeZone.getTimeZone(timeZone)
         return parseDate(sdf.format(fixedDate ?: date))
     }
 
     @JvmStatic
     fun getHoursOffsetFromUTC(id: String): Int {
-        val offset = TimeZone.getTimeZone(id).getOffset(Calendar.getInstance().timeInMillis)
+        val offset: Int = TimeZone.getTimeZone(id).getOffset(Calendar.getInstance().timeInMillis)
         return TimeUnit.HOURS.convert(offset.toLong(), TimeUnit.MILLISECONDS).toInt()
     }
 
     @JvmStatic
     fun parseDate(strDate: String): Date? {
-        val dateFormat = SimpleDateFormat(DATEFORMAT, Locale.US)
+        val dateFormat: SimpleDateFormat = SimpleDateFormat(DATEFORMAT, Locale.US)
         return try {
             dateFormat.parse(strDate)
         } catch (e: ParseException) {
-            e.printStackTrace()
+            Console.error(TAG, "Failed to parse date", e.toString())
             null
         }
     }
 
     @JvmStatic
     fun getAtBeginningOfDay(date: Date): Date {
-        val calendar = Calendar.getInstance()
+        val calendar: Calendar = Calendar.getInstance()
         calendar.time = date
         calendar.set(calendar.get(1), calendar.get(2), calendar.get(5), 0, 0, 0)
         return calendar.time
@@ -61,14 +61,14 @@ object DateUtils {
 
     @JvmStatic
     fun getAtBeginningOfDay(calendarIn: Calendar): Calendar {
-        val calendar = calendarIn.clone() as Calendar
+        val calendar: Calendar = calendarIn.clone() as Calendar
         calendar.set(calendar.get(1), calendar.get(2), calendar.get(5), 0, 0, 0)
         return calendar
     }
 
     @JvmStatic
     fun getDayOfYear(date: Date): Int {
-        val calendar = Calendar.getInstance()
+        val calendar: Calendar = Calendar.getInstance()
         calendar.time = date
         return calendar.get(6)
     }
@@ -78,13 +78,13 @@ object DateUtils {
 
     @JvmStatic
     fun getDayRatio(localNow: Date): Float {
-        val localToday = getAtBeginningOfDay(localNow)
+        val localToday: Date = getAtBeginningOfDay(localNow)
         return (localNow.time - localToday.time) / 8.64E7f
     }
 
     @JvmStatic
     fun getDayRatio(calendar: Calendar): Float {
-        val localToday = getAtBeginningOfDay(calendar)
+        val localToday: Calendar = getAtBeginningOfDay(calendar)
         return (calendar.timeInMillis - localToday.timeInMillis) / 8.64E7f
     }
 
@@ -110,4 +110,6 @@ object DateUtils {
     fun printCalendarHour(calendar: Calendar): String =
         String.format(Locale.US, "%02d", calendar.get(11)) + ":" +
             String.format(Locale.US, "%02d", calendar.get(12))
+
+    private const val TAG: String = "DateUtils"
 }

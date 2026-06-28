@@ -18,40 +18,57 @@ class Glow {
     private val glowShader: ShaderProgram =
         ShaderUtils.load(
             ShaderUtils.loadVertexShader("glsl/base/base"),
-            ShaderUtils.loadFragmentShader("marble/glow"),
+            ShaderUtils.loadFragmentShader("marble/glow")
         )
-    private val fboSize = Size(64.0f, 64.0f)
+    private val fboSize: Size = Size(64.0f, 64.0f)
     private var ar = 0.5625f
-    private val fboRead = SingleFloatFrameBuffer(fboSize.getWidth().toInt(), fboSize.getHeight().toInt(), false)
-    private val fboWrite = SingleFloatFrameBuffer(fboSize.getWidth().toInt(), fboSize.getHeight().toInt(), false)
+    private val fboRead: SingleFloatFrameBuffer =
+        SingleFloatFrameBuffer(fboSize.getWidth().toInt(), fboSize.getHeight().toInt(), hasDepth = false)
+    private val fboWrite: SingleFloatFrameBuffer =
+        SingleFloatFrameBuffer(fboSize.getWidth().toInt(), fboSize.getHeight().toInt(), hasDepth = false)
     private var mainFbo: SingleFloatFrameBuffer = fboRead
 
     init {
-        val cameraFragment = OrthographicCamera(1.0f, 1.0f)
+        val cameraFragment: OrthographicCamera = OrthographicCamera(1.0f, 1.0f)
         glowShader.bind()
         glowShader.setUniformMatrix("u_viewTrans", cameraFragment.view)
         glowShader.setUniformMatrix("u_projTrans", cameraFragment.projection)
-        mesh = PlaneConstructor.generatePlane(1.0f, 1.0f, 0.0f, 0.0f, 1, 1, true)
+        mesh = PlaneConstructor.generatePlane(1.0f, 1.0f, 0.0f, 0.0f, 1, 1, flipY = true)
     }
 
     fun generateGlow(
         texture: Texture,
-        numTimes: Int,
+        numTimes: Int
     ): Texture {
         idx = 0
         var target = fboWrite
         var i = 0
         while (i < numTimes * 2) {
-            val source = mainFbo
-            target = if (source === fboWrite) fboRead else fboWrite
+            val source: SingleFloatFrameBuffer = mainFbo
+            target =
+                if (source === fboWrite) {
+                    fboRead
+                } else {
+                    fboWrite
+                }
             begin(target)
-            render(if (i == 0) texture else source.colorBufferTexture)
+            val renderTexture: Texture =
+                if (i == 0) {
+                    texture
+                } else {
+                    source.colorBufferTexture
+                }
+            render(renderTexture)
             end(target)
             mainFbo = target
             idx = (idx + 1) % 2
             i++
         }
-        return if (numTimes < 1) texture else target.colorBufferTexture
+        return if (numTimes < 1) {
+            texture
+        } else {
+            target.colorBufferTexture
+        }
     }
 
     private fun begin(fbo: FrameBuffer) {
@@ -67,9 +84,35 @@ class Glow {
     private fun render(texture: Texture) {
         texture.bind(0)
         glowShader.setUniformi("u_texture", 0)
-        val offsetX = (if (ar < 1.0f) 1.0f else 1.0f / ar) / fboSize.getWidth()
-        val offsetY = (if (ar < 1.0f) ar else 1.0f) / fboSize.getHeight()
-        glowShader.setUniformf("u_offset", if (idx == 0) offsetX else 0.0f, if (idx != 0) offsetY else 0.0f)
+        val offsetX: Float =
+            (
+                if (ar < 1.0f) {
+                    1.0f
+                } else {
+                    1.0f / ar
+                }
+            ) / fboSize.getWidth()
+        val offsetY: Float =
+            (
+                if (ar < 1.0f) {
+                    ar
+                } else {
+                    1.0f
+                }
+            ) / fboSize.getHeight()
+        val uniformOffsetX: Float =
+            if (idx == 0) {
+                offsetX
+            } else {
+                0.0f
+            }
+        val uniformOffsetY: Float =
+            if (idx != 0) {
+                offsetY
+            } else {
+                0.0f
+            }
+        glowShader.setUniformf("u_offset", uniformOffsetX, uniformOffsetY)
         mesh.render(glowShader, 4)
     }
 
@@ -88,7 +131,7 @@ class Glow {
 
     fun resize(
         width: Int,
-        height: Int,
+        height: Int
     ) {
         if (width <= 0 || height <= 0) {
             return

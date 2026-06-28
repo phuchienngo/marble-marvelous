@@ -15,7 +15,7 @@ class InputMultiplexer
 
         fun addProcessor(
             index: Int,
-            processor: InputProcessor,
+            processor: InputProcessor
         ) {
             this.processors.add(index, processor)
         }
@@ -39,27 +39,39 @@ class InputMultiplexer
         override fun touchDown(
             i: Int,
             i2: Int,
-            i3: Int,
+            i3: Int
         ): Boolean {
-            for (p in processors) if (p.touchDown(i, i2, i3)) return true
+            for (p in processors) {
+                if (p.touchDown(i, i2, i3)) {
+                    return true
+                }
+            }
             return false
         }
 
         override fun touchUp(
             i: Int,
             i2: Int,
-            i3: Int,
+            i3: Int
         ): Boolean {
-            for (p in processors) if (p.touchUp(i, i2, i3)) return true
+            for (p in processors) {
+                if (p.touchUp(i, i2, i3)) {
+                    return true
+                }
+            }
             return false
         }
 
         override fun touchDragged(
             i: Int,
             i2: Int,
-            i3: Int,
+            i3: Int
         ): Boolean {
-            for (p in processors) if (p.touchDragged(i, i2, i3)) return true
+            for (p in processors) {
+                if (p.touchDragged(i, i2, i3)) {
+                    return true
+                }
+            }
             return false
         }
     }

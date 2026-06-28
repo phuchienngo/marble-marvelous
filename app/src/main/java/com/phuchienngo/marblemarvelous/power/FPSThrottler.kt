@@ -18,9 +18,9 @@ class FPSThrottler
     constructor() {
         @JvmField var fps = 60
         private var isPowerSaveMode = false
-        private val isDrawing = AtomicBoolean(false)
-        private val isContinuousRendering = AtomicBoolean(true)
-        private val requestRender = AtomicBoolean(false)
+        private val isDrawing: AtomicBoolean = AtomicBoolean(NOT_DRAWING)
+        private val isContinuousRendering: AtomicBoolean = AtomicBoolean(CONTINUOUS_RENDERING_ENABLED)
+        private val requestRender: AtomicBoolean = AtomicBoolean(RENDER_NOT_REQUESTED)
 
         @Volatile
         private var frameTimeMs = 16.666666666666668
@@ -29,8 +29,8 @@ class FPSThrottler
 
         fun resume() {
             Gdx.app.graphics.isContinuousRendering = false
-            requestRender.set(false)
-            isDrawing.set(false)
+            requestRender.set(RENDER_NOT_REQUESTED)
+            isDrawing.set(NOT_DRAWING)
             updateFrameTime()
             mRenderThread = FpsThrottlerThread()
             mRenderThread!!.start()
@@ -38,12 +38,13 @@ class FPSThrottler
 
         fun pause() {
             Gdx.app.graphics.isContinuousRendering = true
-            mRenderThread?.let { thread ->
-                val handler = thread.getHandler()
+            val renderThread: FpsThrottlerThread? = mRenderThread
+            if (renderThread != null) {
+                val handler: Handler? = renderThread.getHandler()
                 if (handler != null) {
                     handler.sendEmptyMessage(0)
                 } else {
-                    thread.interrupt()
+                    renderThread.interrupt()
                 }
                 mRenderThread = null
             }
@@ -55,24 +56,34 @@ class FPSThrottler
         }
 
         fun beginFrame() {
-            isDrawing.set(true)
+            isDrawing.set(DRAWING)
         }
 
         fun endFrame(fps: Int) {
             this.fps =
                 if (fps <= 0) {
                     1
-                } else if (isPowerSaveMode) {
-                    fps / 2
                 } else {
-                    fps
+                    if (isPowerSaveMode) {
+                        fps / 2
+                    } else {
+                        fps
+                    }
                 }
             updateFrameTime()
-            isDrawing.set(false)
+            isDrawing.set(NOT_DRAWING)
         }
 
         private fun updateFrameTime() {
-            frameTimeMs = 1000.0 / (if (isContinuousRendering.get()) fps else 60).toDouble()
+            frameTimeMs =
+                1000.0 /
+                    (
+                        if (isContinuousRendering.get()) {
+                            fps
+                        } else {
+                            DEFAULT_FPS
+                        }
+                    ).toDouble()
         }
 
         fun setPowerSaveMode(isPowerSaveMode: Boolean) {
@@ -85,7 +96,7 @@ class FPSThrottler
 
         fun requestRendering(force: Boolean) {
             if (!isContinuousRendering.get()) {
-                requestRender.set(true)
+                requestRender.set(RENDER_REQUESTED)
             }
             if (force) {
                 requestRendering()
@@ -93,13 +104,13 @@ class FPSThrottler
         }
 
         private fun requestRendering() {
-            ((Gdx.app.graphics as AndroidGraphics).view as GLSurfaceView).queueEvent {
-                Gdx.app.graphics.requestRendering()
+            ((Gdx.app.graphics as AndroidGraphics).view as GLSurfaceView).queueEvent requestRender@{
+                return@requestRender Gdx.app.graphics.requestRendering()
             }
         }
 
         private class FpsHandler(
-            looper: Looper,
+            looper: Looper
         ) : Handler(looper) {
             override fun handleMessage(msg: Message) {
                 Console.log(TAG, "got message, quitting")
@@ -132,28 +143,44 @@ class FPSThrottler
             fun getHandler(): Handler? = mHandler
 
             override fun doFrame(frameTimeNanos: Long) {
-                if (lastFrameTimeNanos != -1L) {
-                    if (!isDrawing.get()) {
-                        val dms = (frameTimeNanos - lastFrameTimeNanos) / 1000000.0
-                        if (dms >= frameTimeMs) {
-                            if (isContinuousRendering.get() ||
-                                (!isContinuousRendering.get() && requestRender.get())
-                            ) {
-                                requestRendering()
-                                requestRender.compareAndSet(true, false)
-                            }
-                            lastFrameTimeNanos = frameTimeNanos
-                        }
-                    }
-                } else {
+                if (lastFrameTimeNanos == INITIAL_FRAME_TIME_NANOS) {
                     lastFrameTimeNanos = frameTimeNanos
                     requestRendering()
+                    Choreographer.getInstance().postFrameCallback(this)
+                    return
+                }
+
+                if (isDrawing.get()) {
+                    Choreographer.getInstance().postFrameCallback(this)
+                    return
+                }
+
+                val dms: Double = (frameTimeNanos - lastFrameTimeNanos) / NANOS_PER_MILLIS
+                if (dms >= frameTimeMs) {
+                    if (shouldRenderFrame()) {
+                        requestRendering()
+                        requestRender.compareAndSet(RENDER_REQUESTED, RENDER_NOT_REQUESTED)
+                    }
+                    lastFrameTimeNanos = frameTimeNanos
                 }
                 Choreographer.getInstance().postFrameCallback(this)
+            }
+
+            private fun shouldRenderFrame(): Boolean {
+                return isContinuousRendering.get() ||
+                    (!isContinuousRendering.get() && requestRender.get())
             }
         }
 
         companion object {
-            private const val TAG = "FPSThrottler"
+            private const val TAG: String = "FPSThrottler"
+            private const val CONTINUOUS_RENDERING_ENABLED: Boolean = true
+            private const val DEFAULT_FPS: Int = 60
+            private const val DRAWING: Boolean = true
+            private const val INITIAL_FRAME_TIME_NANOS: Long = -1L
+            private const val NANOS_PER_MILLIS: Double = 1000000.0
+            private const val NOT_DRAWING: Boolean = false
+            private const val RENDER_NOT_REQUESTED: Boolean = false
+            private const val RENDER_REQUESTED: Boolean = true
         }
     }

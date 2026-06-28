@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.Mesh
 import com.badlogic.gdx.graphics.PerspectiveCamera
 import com.badlogic.gdx.graphics.VertexAttribute
 import com.badlogic.gdx.graphics.glutils.ShaderProgram
+import com.badlogic.gdx.math.Plane
 import com.badlogic.gdx.math.Vector3
 import com.phuchienngo.marblemarvelous.transforms.Transform
 import com.phuchienngo.marblemarvelous.utils.ShaderUtils
@@ -18,21 +19,21 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 class Stars(
-    camera: PerspectiveCamera?,
+    camera: PerspectiveCamera?
 ) : Mesh(
         true,
         STARS_NUMBER,
         0,
         VertexAttribute.Position(),
         VertexAttribute(SIZE_ID, 1, "a_size"),
-        VertexAttribute(OPACITY_ID, 1, "a_opacity"),
+        VertexAttribute(OPACITY_ID, 1, "a_opacity")
     ) {
     private var shader: ShaderProgram? = ShaderUtils.load("marble/stars/stars")
 
     @JvmField var transform = Transform()
-    private val inc = Vector3()
-    private val min = Vector3()
-    private val normal = Vector3()
+    private val inc: Vector3 = Vector3()
+    private val min: Vector3 = Vector3()
+    private val normal: Vector3 = Vector3()
     private var mAod = 0.0f
 
     init {
@@ -58,34 +59,35 @@ class Stars(
     }
 
     private fun random(n: Float): Float {
-        val value = sin(n.toDouble()) * 43758.5453123
+        val value: Double = sin(n.toDouble()) * 43758.5453123
         return (value - floor(value)).toFloat()
     }
 
     override fun dispose() {
         super.dispose()
-        shader?.let {
-            it.dispose()
+        val currentShader: ShaderProgram? = shader
+        if (currentShader != null) {
+            currentShader.dispose()
             shader = null
         }
     }
 
     fun updateStarsPositions(camera: PerspectiveCamera?) {
-        val vertices = FloatArray(750)
+        val vertices: FloatArray = FloatArray(750)
         setCameraLimits(camera ?: PerspectiveCamera())
-        val v = Vector3()
+        val v: Vector3 = Vector3()
         var i = 0
         while (i < vertices.size) {
-            val x = (Random.nextDouble().toFloat() * inc.x) + min.x
-            val y = (Random.nextDouble().toFloat() * inc.y) + min.y
-            val z = (Random.nextDouble().toFloat() * inc.z) + min.z
+            val x: Float = (Random.nextDouble().toFloat() * inc.x) + min.x
+            val y: Float = (Random.nextDouble().toFloat() * inc.y) + min.y
+            val z: Float = (Random.nextDouble().toFloat() * inc.z) + min.z
             v.set(x, y, z)
             v.add(normal.cpy().scl((5.0 + (Random.nextDouble() * 50.0)).toFloat()))
             vertices[i] = v.x
             vertices[i + 1] = v.y
             vertices[i + 2] = v.z
-            val seed = v.x + v.y + v.z
-            val frame = floor(((random(2.0f * seed) * 3.0f) + 0.5f).toDouble())
+            val seed: Float = v.x + v.y + v.z
+            val frame: Double = floor(((random(2.0f * seed) * 3.0f) + 0.5f).toDouble())
             vertices[i + 3] = ((1.0f + (3.0f * random(8.0f * seed))).toDouble() + floor(abs(frame - 1.5).toDouble())).toFloat()
             vertices[i + 4] = 0.6f - (0.5f * random(4.0f * seed))
             i += 5
@@ -94,18 +96,18 @@ class Stars(
     }
 
     private fun setCameraLimits(camera: PerspectiveCamera) {
-        val p = camera.frustum.planes[1]
-        val p1 = camera.frustum.planePoints[4]
-        val p2 = camera.frustum.planePoints[5]
-        val p3 = camera.frustum.planePoints[6]
-        val p4 = camera.frustum.planePoints[7]
-        val farNormal = p.normal
-        val xMin = min(p1.x, min(p2.x, min(p3.x, p4.x)))
-        val xMax = max(p1.x, max(p2.x, max(p3.x, p4.x)))
-        val yMin = min(p1.y, min(p2.y, min(p3.y, p4.y)))
-        val yMax = max(p1.y, max(p2.y, max(p3.y, p4.y)))
-        val zMin = min(p1.z, min(p2.z, min(p3.z, p4.z)))
-        val zMax = max(p1.z, max(p2.z, max(p3.z, p4.z)))
+        val p: Plane = camera.frustum.planes[1]
+        val p1: Vector3 = camera.frustum.planePoints[4]
+        val p2: Vector3 = camera.frustum.planePoints[5]
+        val p3: Vector3 = camera.frustum.planePoints[6]
+        val p4: Vector3 = camera.frustum.planePoints[7]
+        val farNormal: Vector3 = p.normal
+        val xMin: Float = min(p1.x, min(p2.x, min(p3.x, p4.x)))
+        val xMax: Float = max(p1.x, max(p2.x, max(p3.x, p4.x)))
+        val yMin: Float = min(p1.y, min(p2.y, min(p3.y, p4.y)))
+        val yMax: Float = max(p1.y, max(p2.y, max(p3.y, p4.y)))
+        val zMin: Float = min(p1.z, min(p2.z, min(p3.z, p4.z)))
+        val zMax: Float = max(p1.z, max(p2.z, max(p3.z, p4.z)))
         inc.set(xMax - xMin, yMax - yMin, zMax - zMin)
         min.set(xMin, yMin, zMin)
         normal.set(farNormal)
@@ -116,8 +118,8 @@ class Stars(
     }
 
     companion object {
-        private const val OPACITY_ID = 16
-        private const val SIZE_ID = 15
-        private const val STARS_NUMBER = 150
+        private const val OPACITY_ID: Int = 16
+        private const val SIZE_ID: Int = 15
+        private const val STARS_NUMBER: Int = 150
     }
 }

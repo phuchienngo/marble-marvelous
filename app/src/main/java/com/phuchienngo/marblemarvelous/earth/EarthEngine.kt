@@ -53,7 +53,7 @@ class EarthEngine(
     private val cloudsProviderFactory: CloudsProvider.Factory,
     private val userLocation: UserLocationEarth,
     inputMultiplexer: InputMultiplexer,
-    fpsThrottler: FPSThrottler,
+    fpsThrottler: FPSThrottler
 ) : BaseWallpaperEngine(inputMultiplexer, fpsThrottler),
     CloudsProvider.Callback,
     WallpaperThemeProcessor {
@@ -150,7 +150,7 @@ class EarthEngine(
     @Synchronized
     override fun resize(
         width: Int,
-        height: Int,
+        height: Int
     ) {
         super.resize(width, height)
         Gdx.gl.glViewport(0, 0, width, height)
@@ -237,7 +237,7 @@ class EarthEngine(
             -dW / ACTIVATE_ROTATION,
             -dH / ACTIVATE_ROTATION,
             screenSize!!.getWidth() + dW,
-            screenSize!!.getHeight() + dH,
+            screenSize!!.getHeight() + dH
         )
         batch!!.end()
         cam!!.update()
@@ -324,7 +324,7 @@ class EarthEngine(
     override fun userPresenceChange(
         newUserPresence: String,
         prevUserPresence: String,
-        animate: Boolean,
+        animate: Boolean
     ) {
         super.userPresenceChange(newUserPresence, prevUserPresence, animate)
         if ((
@@ -341,8 +341,8 @@ class EarthEngine(
     @Synchronized
     override fun onCloudsUpdated() {
         val currentCloudsProvider: CloudsProvider =
-            requireNotNull(cloudsProvider) {
-                "CloudsProvider must be initialized before clouds can update."
+            requireNotNull(cloudsProvider) cloudsProviderLoaded@{
+                return@cloudsProviderLoaded "CloudsProvider must be initialized before clouds can update."
             }
         val latestCloudMap: CubemapData? = currentCloudsProvider.getLatest()
         if (latestCloudMap != null) {
@@ -359,8 +359,8 @@ class EarthEngine(
         loading = false
         setWallpaperReady()
         val currentCloudsProvider: CloudsProvider =
-            requireNotNull(cloudsProvider) {
-                "CloudsProvider must be initialized before loading completes."
+            requireNotNull(cloudsProvider) cloudsProviderReady@{
+                return@cloudsProviderReady "CloudsProvider must be initialized before loading completes."
             }
         nightDiffuse = assetManager!!.get("earth/nightMap.ktx", Cubemap::class.java)
         nightDiffuse!!.setFilter(Texture.TextureFilter.MipMapLinearLinear, Texture.TextureFilter.MipMapLinearLinear)
@@ -368,8 +368,8 @@ class EarthEngine(
         mEarth = ModelInstance(model)
         mEarth!!.userData = "earth"
         val loadedNightDiffuse: Cubemap =
-            requireNotNull(nightDiffuse) {
-                "Night diffuse map must be loaded before material setup."
+            requireNotNull(nightDiffuse) nightDiffuseLoaded@{
+                return@nightDiffuseLoaded "Night diffuse map must be loaded before material setup."
             }
         mEarth!!.materials.first().set(EarthTextureAttribute.createNight(loadedNightDiffuse))
         if (nextCloudMap == null) {
@@ -405,8 +405,8 @@ class EarthEngine(
             diffuse = Cubemap(KTXTextureData(Gdx.files.internal("earth/dayMap-$season.ktx"), useMipMaps))
             diffuse!!.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
             val loadedDiffuse: Cubemap =
-                requireNotNull(diffuse) {
-                    "Day diffuse map must be loaded before material setup."
+                requireNotNull(diffuse) dayDiffuseLoaded@{
+                    return@dayDiffuseLoaded "Day diffuse map must be loaded before material setup."
                 }
             mEarth!!.materials.first().set(EarthTextureAttribute.createDay(loadedDiffuse))
         }
@@ -455,7 +455,7 @@ class EarthEngine(
     private fun addToVectorSpace(
         main: Vector3,
         offset: Vector3,
-        up: Vector3,
+        up: Vector3
     ): Vector3 {
         val direction: Vector3 = main.cpy().nor()
         val combined: Vector3 = main.cpy()
@@ -477,13 +477,13 @@ class EarthEngine(
         finalCameraPos.add(
             zoomDirection.x * amountToMove,
             zoomDirection.y * amountToMove,
-            zoomDirection.z * amountToMove,
+            zoomDirection.z * amountToMove
         )
         val zOffset: Float = pageSwipeController.getPageOffset()
         finalCameraPos.sub(
             zoomDirection.x * zOffset * finalCameraPos.len() * 0.03f,
             zoomDirection.y * zOffset * finalCameraPos.len() * 0.03f,
-            zoomDirection.z * zOffset * finalCameraPos.len() * 0.03f,
+            zoomDirection.z * zOffset * finalCameraPos.len() * 0.03f
         )
         finalModelTransform.rotate(Vector3.Y, -tweenRotation.getValue() * ACTIVATE_ROTATION * cameraDistanceRatio)
         finalModelTransform.rotate(Vector3.Y, -tweenZoom.getValue() * 10.0f * cameraDistanceRatio)
@@ -502,7 +502,7 @@ class EarthEngine(
 
     private fun zoomIn(
         presence: String,
-        animate: Boolean,
+        animate: Boolean
     ) {
         val easingAod: TweenController.Easing = TweenController.Easing.QUAD_OUT
         val easing: TweenController.Easing = TweenController.Easing.QUAD_OUT
@@ -595,7 +595,7 @@ class EarthEngine(
             private val cloudsProviderFactory: CloudsProvider.Factory,
             private val userLocation: UserLocationEarth,
             private val inputMultiplexer: InputMultiplexer,
-            private val fpsThrottler: FPSThrottler,
+            private val fpsThrottler: FPSThrottler
         ) {
             fun create(): EarthEngine = EarthEngine(context, cloudsProviderFactory, userLocation, inputMultiplexer, fpsThrottler)
         }

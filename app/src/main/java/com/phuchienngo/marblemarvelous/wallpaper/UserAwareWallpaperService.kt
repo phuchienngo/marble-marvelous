@@ -1,6 +1,7 @@
 package com.phuchienngo.marblemarvelous.wallpaper
 
 import android.app.WallpaperColors
+import android.graphics.Color
 import android.opengl.GLSurfaceView
 import android.service.wallpaper.WallpaperService
 import android.view.MotionEvent
@@ -12,10 +13,10 @@ import com.badlogic.gdx.backends.android.AndroidLiveWallpaperService
 import com.badlogic.gdx.backends.android.AndroidWallpaperListener
 import com.phuchienngo.marblemarvelous.BuildConfig
 import com.phuchienngo.marblemarvelous.di.DaggerWallpaperComponent
+import com.phuchienngo.marblemarvelous.di.WallpaperComponent
 import com.phuchienngo.marblemarvelous.input.InputMultiplexer
 import com.phuchienngo.marblemarvelous.input.InputProcessor
 import com.phuchienngo.marblemarvelous.utils.Console
-import com.phuchienngo.marblemarvelous.wallpaper.WallpaperColorProcessor
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ChargingController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.PowerSaveController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ScreenRotationController
@@ -46,36 +47,39 @@ abstract class UserAwareWallpaperService :
 
     abstract fun createEngine(): UserAwareEngine
 
-    open fun onCreateAppConfig(): AndroidApplicationConfiguration =
-        AndroidApplicationConfiguration().apply {
-            useAccelerometer = false
-            useCompass = false
-            useGyroscope = false
-            numSamples = 2
-            r = 8
-            g = 8
-            b = 8
-            a = 8
-            depth = 16
-        }
+    open fun onCreateAppConfig(): AndroidApplicationConfiguration {
+        val config: AndroidApplicationConfiguration = AndroidApplicationConfiguration()
+        config.useAccelerometer = false
+        config.useCompass = false
+        config.useGyroscope = false
+        config.numSamples = 2
+        config.r = 8
+        config.g = 8
+        config.b = 8
+        config.a = 8
+        config.depth = 16
+        return config
+    }
 
     override fun onCreateApplication() {
         super.onCreateApplication()
         app.logLevel = 1
-        val engine =
-            createEngine().also {
-                this.engine = it
-                it.updateAndroidWallpaperEngineReference(linkedEngine)
-            }
+        val engine: UserAwareEngine = createEngine()
+        this.engine = engine
+        engine.updateAndroidWallpaperEngineReference(linkedEngine)
         initialize(engine, onCreateAppConfig())
-        val component =
+        val component: WallpaperComponent =
             DaggerWallpaperComponent
                 .factory()
                 .create(this, this, this, this, this, this)
-        userPresenceController = component.userPresenceController().also { it.resume(true) }
-        powerSaveController = component.powerSaveController().also { it.resume(true) }
-        screenRotationController = component.screenRotationController().also { it.resume(true) }
-        chargingController = component.chargingController().also { it.resume(true) }
+        userPresenceController = component.userPresenceController()
+        userPresenceController?.resume(fireStraightAway = true)
+        powerSaveController = component.powerSaveController()
+        powerSaveController?.resume(fireStraightAway = true)
+        screenRotationController = component.screenRotationController()
+        screenRotationController?.resume(fireStraightAway = true)
+        chargingController = component.chargingController()
+        chargingController?.resume(fireStraightAway = true)
         touchController = component.touchController()
         receiverRegistered = true
     }
@@ -84,50 +88,69 @@ abstract class UserAwareWallpaperService :
 
     override fun onUserPresenceChanged(
         userPresence: String,
-        animate: Boolean,
+        animate: Boolean
     ) {
-        glView().queueEvent { engine?.updateUserPresence(userPresence, animate) }
+        glView().queueEvent updateUserPresence@{
+            engine?.updateUserPresence(userPresence, animate)
+            return@updateUserPresence
+        }
     }
 
     override fun onPowerSaveModeChanged(isPowerSaveMode: Boolean) {
-        glView().queueEvent { engine?.updatePowerMode(isPowerSaveMode) }
+        glView().queueEvent updatePowerMode@{
+            engine?.updatePowerMode(isPowerSaveMode)
+            return@updatePowerMode
+        }
     }
 
     override fun onWindowOrientationChanged(orientation: ScreenRotationController.ScreenRotation) {
-        glView().queueEvent { engine?.updateScreenOrientation(orientation) }
+        glView().queueEvent updateScreenOrientation@{
+            engine?.updateScreenOrientation(orientation)
+            return@updateScreenOrientation
+        }
     }
 
     override fun onChargingStateChanged(isCharging: Boolean) {
-        glView().queueEvent { engine?.updateIsCharging(isCharging) }
+        glView().queueEvent updateChargingState@{
+            engine?.updateIsCharging(isCharging)
+            return@updateChargingState
+        }
     }
 
     override fun onTouchProcessed(
         screenX: Int,
         screenY: Int,
         index: Int,
-        type: TouchController.TouchType,
+        type: TouchController.TouchType
     ) {
-        glView().queueEvent { engine?.processTouchEvent(screenX, screenY, index, type) }
+        glView().queueEvent processTouchEvent@{
+            engine?.processTouchEvent(screenX, screenY, index, type)
+            return@processTouchEvent
+        }
     }
 
     fun requestRendering() {
-        glView().queueEvent { app.graphics.requestRendering() }
+        glView().queueEvent requestRender@{
+            return@requestRender app.graphics.requestRendering()
+        }
     }
 
     override fun onCreateEngine(): WallpaperService.Engine =
         object : AndroidLiveWallpaperService.AndroidWallpaperEngine() {
-            private val wallpaperInitialized = AtomicBoolean(false)
+            private val wallpaperInitialized: AtomicBoolean = AtomicBoolean(WALLPAPER_NOT_INITIALIZED)
 
             override fun onComputeColors(): WallpaperColors? = super.onComputeColors()
 
             override fun onCreate(surfaceHolder: SurfaceHolder) {
                 super.onCreate(surfaceHolder)
-                setTouchEventsEnabled(true)
+                setTouchEventsEnabled(TOUCH_EVENTS_ENABLED)
                 engine?.updateAndroidWallpaperEngineReference(this)
             }
 
             override fun onSurfaceRedrawNeeded(holder: SurfaceHolder) {
-                if (wallpaperInitialized.compareAndSet(false, true) && engine?.isLoaded() == false) {
+                if (wallpaperInitialized.compareAndSet(WALLPAPER_NOT_INITIALIZED, WALLPAPER_INITIALIZED) &&
+                    engine?.isLoaded() == false
+                ) {
                     requestRendering()
                 }
                 super.onSurfaceRedrawNeeded(holder)
@@ -141,15 +164,16 @@ abstract class UserAwareWallpaperService :
             // the libGDX engine here (as in the original); kept as a plain method.
             fun onAmbientModeChanged(
                 inAmbientMode: Boolean,
-                animated: Boolean,
+                animated: Boolean
             ) {
                 userPresenceController?.updateAmbientMode(inAmbientMode, animated)
             }
 
             override fun onDestroy() {
                 if (engines == 0) {
-                    engine?.let {
-                        it.dispose()
+                    val currentEngine: UserAwareEngine? = engine
+                    if (currentEngine != null) {
+                        currentEngine.dispose()
                         engine = null
                     }
                 }
@@ -175,15 +199,16 @@ abstract class UserAwareWallpaperService :
             chargingController = null
             touchController = null
         }
-        engine?.let {
-            it.dispose()
+        val currentEngine: UserAwareEngine? = engine
+        if (currentEngine != null) {
+            currentEngine.dispose()
             engine = null
         }
         super.onDestroy()
     }
 
     abstract class UserAwareEngine(
-        private val multiplexer: InputMultiplexer,
+        private val multiplexer: InputMultiplexer
     ) : AndroidWallpaperListener,
         ApplicationListener {
         private var engineReference: AndroidLiveWallpaperService.AndroidWallpaperEngine? = null
@@ -207,7 +232,7 @@ abstract class UserAwareWallpaperService :
         abstract fun userPresenceChange(
             newUserPresence: String,
             prevUserPresence: String,
-            animate: Boolean,
+            animate: Boolean
         )
 
         protected fun isCharging(): Boolean = chargingState
@@ -239,12 +264,16 @@ abstract class UserAwareWallpaperService :
             screenX: Int,
             screenY: Int,
             index: Int,
-            type: TouchController.TouchType,
+            type: TouchController.TouchType
         ) {
-            when (type) {
-                TouchController.TouchType.DOWN -> multiplexer.touchDown(screenX, screenY, index)
-                TouchController.TouchType.UP -> multiplexer.touchUp(screenX, screenY, index)
-                TouchController.TouchType.MOVE -> multiplexer.touchDragged(screenX, screenY, index)
+            if (type == TouchController.TouchType.DOWN) {
+                multiplexer.touchDown(screenX, screenY, index)
+            } else {
+                if (type == TouchController.TouchType.UP) {
+                    multiplexer.touchUp(screenX, screenY, index)
+                } else {
+                    multiplexer.touchDragged(screenX, screenY, index)
+                }
             }
         }
 
@@ -255,15 +284,20 @@ abstract class UserAwareWallpaperService :
 
         fun updateUserPresence(
             userPresence: String,
-            animate: Boolean,
+            animate: Boolean
         ) {
-            val oldUserPresence = this.userPresence
+            val oldUserPresence: String = this.userPresence
             this.userPresence = userPresence
-            val isKnownPresence =
+            val isKnownPresence: Boolean =
                 userPresence == UserPresenceController.PRESENCE_OFF ||
                     userPresence == UserPresenceController.PRESENCE_AOD ||
                     userPresence == UserPresenceController.PRESENCE_LOCKED
-            val animateAdjusted = if (isKnownPresence) !isPowerSave() && animate else animate
+            val animateAdjusted: Boolean =
+                if (isKnownPresence) {
+                    !isPowerSave() && animate
+                } else {
+                    animate
+                }
             userPresenceChange(userPresence, oldUserPresence, animateAdjusted)
         }
 
@@ -278,12 +312,14 @@ abstract class UserAwareWallpaperService :
         }
 
         fun computeWallpaperColors(androidWallpaperEngine: AndroidLiveWallpaperService.AndroidWallpaperEngine): WallpaperColors? {
-            val fallback = wallpaperColors
-            val colorProcessor = this as? WallpaperColorProcessor
-            if (colorProcessor == null && fallback == null) return null
-            val primary = colorProcessor?.mainWallpaperColor() ?: fallback?.primaryColor ?: return null
-            val secondary = colorProcessor?.secondaryWallpaperColor() ?: fallback?.secondaryColor
-            val tertiary = colorProcessor?.tertiaryWallpaperColor() ?: fallback?.tertiaryColor
+            val fallback: WallpaperColors? = wallpaperColors
+            val colorProcessor: WallpaperColorProcessor? = this as? WallpaperColorProcessor
+            if (colorProcessor == null && fallback == null) {
+                return null
+            }
+            val primary: Color = colorProcessor?.mainWallpaperColor() ?: fallback?.primaryColor ?: return null
+            val secondary: Color? = colorProcessor?.secondaryWallpaperColor() ?: fallback?.secondaryColor
+            val tertiary: Color? = colorProcessor?.tertiaryWallpaperColor() ?: fallback?.tertiaryColor
             return WallpaperColors(primary, secondary, tertiary)
         }
 
@@ -293,8 +329,11 @@ abstract class UserAwareWallpaperService :
     }
 
     companion object {
-        const val GL_BINNING_CONTROL_HINT_QCOM = 36784
-        const val GL_BINNING_QCOM = 36785
-        const val TAG = "WP"
+        const val GL_BINNING_CONTROL_HINT_QCOM: Int = 36784
+        const val GL_BINNING_QCOM: Int = 36785
+        const val TAG: String = "WP"
+        private const val TOUCH_EVENTS_ENABLED: Boolean = true
+        private const val WALLPAPER_INITIALIZED: Boolean = true
+        private const val WALLPAPER_NOT_INITIALIZED: Boolean = false
     }
 }

@@ -8,7 +8,7 @@ import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.utils.GdxRuntimeException
 
 class EarthTextureAttribute private constructor(
-    type: Long,
+    type: Long
 ) : Attribute(type) {
     val extraTransform: Matrix4 = Matrix4().idt()
     val textureDescription: TextureDescriptor<Cubemap> = TextureDescriptor()
@@ -22,7 +22,7 @@ class EarthTextureAttribute private constructor(
     private constructor(
         type: Long,
         textureDescription: TextureDescriptor<Cubemap>,
-        transform: Matrix4,
+        transform: Matrix4
     ) : this(type) {
         extraTransform.set(transform)
         this.textureDescription.set(textureDescription)
@@ -31,7 +31,7 @@ class EarthTextureAttribute private constructor(
     private constructor(
         type: Long,
         texture: Cubemap,
-        transform: Matrix4,
+        transform: Matrix4
     ) : this(type) {
         extraTransform.set(transform)
         textureDescription.texture = texture
@@ -40,7 +40,7 @@ class EarthTextureAttribute private constructor(
     private constructor(copyFrom: EarthTextureAttribute) : this(
         type = copyFrom.type,
         textureDescription = copyFrom.textureDescription,
-        transform = copyFrom.extraTransform,
+        transform = copyFrom.extraTransform
     )
 
     override fun copy(): Attribute = EarthTextureAttribute(this)
@@ -70,14 +70,14 @@ class EarthTextureAttribute private constructor(
             EarthTextureAttribute(
                 type = DAY_DIFFUSE,
                 texture = texture,
-                transform = Matrix4().idt(),
+                transform = Matrix4().idt()
             )
 
         fun createNight(texture: Cubemap): EarthTextureAttribute =
             EarthTextureAttribute(
                 type = NIGHT_DIFFUSE,
                 texture = texture,
-                transform = Matrix4().idt(),
+                transform = Matrix4().idt()
             )
     }
 }

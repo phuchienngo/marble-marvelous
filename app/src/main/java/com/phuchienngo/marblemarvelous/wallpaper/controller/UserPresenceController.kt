@@ -16,7 +16,7 @@ class UserPresenceController
     @Inject
     constructor(
         context: Context,
-        private val listener: UserPresenceListener,
+        private val listener: UserPresenceListener
     ) : ViewController(context) {
         private var ambientMode: AtomicBoolean? = null
         private var animate: AtomicBoolean? = null
@@ -44,7 +44,7 @@ class UserPresenceController
         override fun onBroadcastReceived(
             context: Context,
             intent: Intent,
-            action: String,
+            action: String
         ) {
             var newPresence: String = getPresenceFromAction(context, action)
             var newAnimate: Boolean = true
@@ -61,7 +61,7 @@ class UserPresenceController
 
         private fun getPresenceFromAction(
             context: Context,
-            action: String,
+            action: String
         ): String {
             if (action == "android.intent.action.SCREEN_OFF") {
                 return PRESENCE_OFF
@@ -105,7 +105,7 @@ class UserPresenceController
 
         fun updateAmbientMode(
             ambientMode: Boolean,
-            animate: Boolean,
+            animate: Boolean
         ) {
             if (ambientMode == this.ambientMode!!.get() && animate == this.animate!!.get()) {
                 return
@@ -135,7 +135,7 @@ class UserPresenceController
         private fun setUserPresence(
             userPresence: String,
             animate: Boolean,
-            fire: Boolean,
+            fire: Boolean
         ) {
             if (this.userPresence!!.get() == userPresence) {
                 return

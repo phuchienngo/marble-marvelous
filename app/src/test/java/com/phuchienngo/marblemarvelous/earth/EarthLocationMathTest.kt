@@ -15,25 +15,25 @@ class EarthLocationMathTest {
             expectedX = 0.0f,
             expectedY = 0.0f,
             expectedZ = 1.0f,
-            actual = EarthLocationMath.locationSurface(0.0f, 0.0f, RADIUS, earthTransform),
+            actual = EarthLocationMath.locationSurface(0.0f, 0.0f, RADIUS, earthTransform)
         )
         assertVector(
             expectedX = 1.0f,
             expectedY = 0.0f,
             expectedZ = 0.0f,
-            actual = EarthLocationMath.locationSurface(90.0f, 0.0f, RADIUS, earthTransform),
+            actual = EarthLocationMath.locationSurface(90.0f, 0.0f, RADIUS, earthTransform)
         )
         assertVector(
             expectedX = -1.0f,
             expectedY = 0.0f,
             expectedZ = 0.0f,
-            actual = EarthLocationMath.locationSurface(-90.0f, 0.0f, RADIUS, earthTransform),
+            actual = EarthLocationMath.locationSurface(-90.0f, 0.0f, RADIUS, earthTransform)
         )
         assertVector(
             expectedX = 0.0f,
             expectedY = 1.0f,
             expectedZ = 0.0f,
-            actual = EarthLocationMath.locationSurface(0.0f, 90.0f, RADIUS, earthTransform),
+            actual = EarthLocationMath.locationSurface(0.0f, 90.0f, RADIUS, earthTransform)
         )
     }
 
@@ -45,7 +45,7 @@ class EarthLocationMathTest {
             expectedX = 1.0f,
             expectedY = 0.0f,
             expectedZ = 0.0f,
-            actual = EarthLocationMath.locationSurface(0.0f, 0.0f, RADIUS, earthTransform),
+            actual = EarthLocationMath.locationSurface(0.0f, 0.0f, RADIUS, earthTransform)
         )
     }
 
@@ -59,14 +59,14 @@ class EarthLocationMathTest {
                 longitudeDegrees = HANOI_LONGITUDE,
                 latitudeDegrees = HANOI_LATITUDE,
                 utcDayRatio = VIETNAM_09_13_UTC_DAY_RATIO,
-                sunDeclinationDegrees = morningDeclination,
+                sunDeclinationDegrees = morningDeclination
             )
         val midnightLight: Float =
             EarthLocationMath.daylightFactor(
                 longitudeDegrees = HANOI_LONGITUDE,
                 latitudeDegrees = HANOI_LATITUDE,
                 utcDayRatio = VIETNAM_00_13_UTC_DAY_RATIO,
-                sunDeclinationDegrees = midnightDeclination,
+                sunDeclinationDegrees = midnightDeclination
             )
 
         assertTrue(morningLight > DAYLIGHT_THRESHOLD)
@@ -77,7 +77,7 @@ class EarthLocationMathTest {
         expectedX: Float,
         expectedY: Float,
         expectedZ: Float,
-        actual: Vector3,
+        actual: Vector3
     ) {
         assertEquals(expectedX, actual.x, EPSILON)
         assertEquals(expectedY, actual.y, EPSILON)

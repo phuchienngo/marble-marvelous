@@ -7,6 +7,6 @@ interface TouchListener {
         screenX: Int,
         screenY: Int,
         index: Int,
-        type: TouchController.TouchType,
+        type: TouchController.TouchType
     )
 }

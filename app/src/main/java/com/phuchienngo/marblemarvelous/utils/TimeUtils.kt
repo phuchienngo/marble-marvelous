@@ -8,14 +8,14 @@ import java.util.Locale
 object TimeUtils {
     @JvmStatic
     fun getDate(timeInMillis: Long): String {
-        val cal = Calendar.getInstance()
+        val cal: Calendar = Calendar.getInstance()
         cal.timeInMillis = timeInMillis
         return DateFormat.format("dd/MM/yyyy hh:mm a", cal).toString()
     }
 
     @JvmStatic
     fun getTimeString(): String {
-        val cal =
+        val cal: android.icu.util.Calendar =
             android.icu.util.Calendar
                 .getInstance()
         cal.timeZone = TimeZone.getTimeZone("PST")
@@ -25,7 +25,7 @@ object TimeUtils {
             cal.get(1),
             cal.get(2) + 1,
             cal.get(5),
-            cal.get(10),
+            cal.get(10)
         )
     }
 }

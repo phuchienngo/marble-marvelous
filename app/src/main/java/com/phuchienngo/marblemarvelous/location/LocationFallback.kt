@@ -6,7 +6,7 @@ import java.util.TimeZone
 object LocationFallback {
     fun fromTimeZone(
         timeZone: TimeZone,
-        timeInMillis: Long,
+        timeInMillis: Long
     ): Vector2 = fromUtcOffset(timeZone.getOffset(timeInMillis))
 
     fun fromUtcOffset(offsetMillis: Int): Vector2 {

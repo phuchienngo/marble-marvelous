@@ -12,7 +12,7 @@ import com.badlogic.gdx.graphics.glutils.GLFrameBuffer
 class SingleFloatFrameBuffer(
     width: Int,
     height: Int,
-    hasDepth: Boolean,
+    hasDepth: Boolean
 ) : FrameBuffer(buildSpec(width, height)) {
     init {
         colorBufferTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
@@ -22,11 +22,13 @@ class SingleFloatFrameBuffer(
     companion object {
         private fun buildSpec(
             w: Int,
-            h: Int,
+            h: Int
         ): GLFrameBuffer.FrameBufferBuilder {
-            val builder = GLFrameBuffer.FrameBufferBuilder(w, h)
-            builder.addFloatAttachment(GL30.GL_R32F, GL30.GL_RED, GL20.GL_FLOAT, true)
+            val builder: GLFrameBuffer.FrameBufferBuilder = GLFrameBuffer.FrameBufferBuilder(w, h)
+            builder.addFloatAttachment(GL30.GL_R32F, GL30.GL_RED, GL20.GL_FLOAT, FLOAT_ATTACHMENT_GPU_ONLY)
             return builder
         }
+
+        private const val FLOAT_ATTACHMENT_GPU_ONLY: Boolean = true
     }
 }

@@ -8,9 +8,9 @@ import java.util.Date
 class CloudRefreshPolicyTest {
     @Test
     fun shouldRefreshWhenCloudsAreOlderThanOneHour() {
-        val now = Date(NOW_MILLIS)
-        val recentUpdate = Date(NOW_MILLIS - FIFTY_NINE_MINUTES_MILLIS)
-        val staleUpdate = Date(NOW_MILLIS - SIXTY_ONE_MINUTES_MILLIS)
+        val now: Date = Date(NOW_MILLIS)
+        val recentUpdate: Date = Date(NOW_MILLIS - FIFTY_NINE_MINUTES_MILLIS)
+        val staleUpdate: Date = Date(NOW_MILLIS - SIXTY_ONE_MINUTES_MILLIS)
 
         assertFalse(CloudRefreshPolicy.shouldRefresh(recentUpdate, now))
         assertTrue(CloudRefreshPolicy.shouldRefresh(staleUpdate, now))
