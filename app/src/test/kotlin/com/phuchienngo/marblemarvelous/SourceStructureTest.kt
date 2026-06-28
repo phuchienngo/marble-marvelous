@@ -14,7 +14,7 @@ class SourceStructureTest {
 
     @Test
     fun sourceTreeUsesMarbleSpecificPackages() {
-        val sourceRoot: File = File("src/main/java/com/phuchienngo/marblemarvelous")
+        val sourceRoot: File = File("src/main/kotlin/com/phuchienngo/marblemarvelous")
         val sourceFiles: List<File> =
             sourceRoot
                 .walkTopDown()
@@ -37,6 +37,14 @@ class SourceStructureTest {
         assertFalse(sourceText.contains("celestialBodies"))
         assertFalse(sourceText.contains("PlanetMask"))
         assertFalse(sourceText.contains("PlanetTextureAttribute"))
+    }
+
+    @Test
+    fun sourceTreeUsesKotlinSourceRoots() {
+        assertTrue(File("src/main/kotlin/com/phuchienngo/marblemarvelous").exists())
+        assertTrue(File("src/test/kotlin/com/phuchienngo/marblemarvelous").exists())
+        assertFalse(File("src/main/java").exists())
+        assertFalse(File("src/test/java").exists())
     }
 
     @Test
@@ -66,7 +74,7 @@ class SourceStructureTest {
     fun permissionsActivityUsesJetpackCompose() {
         val buildSource: String = File("build.gradle.kts").readText()
         val permissionsActivitySource: String =
-            File("src/main/java/com/phuchienngo/marblemarvelous/permissions/PermissionsActivity.kt").readText()
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/permissions/PermissionsActivity.kt").readText()
 
         assertTrue(buildSource.contains("id(\"org.jetbrains.kotlin.plugin.compose\")"))
         assertTrue(buildSource.contains("compose = true"))
@@ -90,8 +98,8 @@ class SourceStructureTest {
     fun eachSourceFileHasOnlyOneTopLevelType() {
         val roots: List<File> =
             listOf(
-                File("src/main/java/com/phuchienngo/marblemarvelous"),
-                File("src/test/java/com/phuchienngo/marblemarvelous")
+                File("src/main/kotlin/com/phuchienngo/marblemarvelous"),
+                File("src/test/kotlin/com/phuchienngo/marblemarvelous")
             )
         val violations: List<String> =
             roots

@@ -4,8 +4,8 @@ import com.badlogic.gdx.math.MathUtils
 import com.phuchienngo.marblemarvelous.utils.Easing as EasingFn
 
 class TweenController {
-    @JvmField val DEFAULT_EASING: Easing = Easing.EXPO_OUT
-    protected var easing = DEFAULT_EASING
+    @JvmField val defaultEasing: Easing = Easing.EXPO_OUT
+    private var easing = defaultEasing
     private var duration = 1.0f
     private var delay = 0.0f
     private var durationDelay = 0.0f

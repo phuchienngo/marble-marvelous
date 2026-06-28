@@ -11,7 +11,7 @@ class OpenWeatherCloudsTest {
     @Test
     fun cloudRefreshDoesNotPrefetchEveryTileBeforeRendering() {
         val source: String =
-            File("src/main/java/com/phuchienngo/marblemarvelous/weather/OpenWeatherClouds.kt")
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/OpenWeatherClouds.kt")
                 .readText()
 
         assertFalse(source.contains("downloadCloudTiles(apiKey, tileDirectory)"))

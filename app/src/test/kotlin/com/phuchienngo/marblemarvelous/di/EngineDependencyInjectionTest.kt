@@ -10,15 +10,15 @@ class EngineDependencyInjectionTest {
     fun inputMultiplexerIsInjectedIntoWallpaperEngines() {
         val inputMultiplexerSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/input/InputMultiplexer.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/input/InputMultiplexer.kt"
             )
         val userAwareEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/wallpaper/UserAwareWallpaperService.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/wallpaper/UserAwareWallpaperService.kt"
             )
         val baseEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/wallpaper/BaseWallpaperEngine.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/wallpaper/BaseWallpaperEngine.kt"
             )
 
         assertTrue(inputMultiplexerSource.contains("@WallpaperEngineScope"))
@@ -34,15 +34,15 @@ class EngineDependencyInjectionTest {
     fun fpsThrottlerIsInjectedIntoWallpaperEngines() {
         val fpsThrottlerSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/power/FPSThrottler.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/power/FPSThrottler.kt"
             )
         val baseEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/wallpaper/BaseWallpaperEngine.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/wallpaper/BaseWallpaperEngine.kt"
             )
         val earthEngineSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/earth/EarthEngine.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/earth/EarthEngine.kt"
             )
 
         assertTrue(fpsThrottlerSource.contains("@WallpaperEngineScope"))
@@ -58,7 +58,7 @@ class EngineDependencyInjectionTest {
         val manifestSource: String = readSource("src/main/AndroidManifest.xml")
         val engineComponentSource: String =
             readSource(
-                "src/main/java/com/phuchienngo/marblemarvelous/di/EngineComponent.kt"
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/di/EngineComponent.kt"
             )
 
         assertFalse(manifestSource.contains("MoonWallpaperService"))
@@ -70,15 +70,15 @@ class EngineDependencyInjectionTest {
         assertFalse(engineComponentSource.contains("plutoEngine"))
         assertFalse(engineComponentSource.contains("marsEngine"))
         assertFalse(
-            File("src/main/java/com/phuchienngo/marblemarvelous/earth/wallpapers/variations/MoonWallpaperService.kt").exists()
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/wallpapers/variations/MoonWallpaperService.kt").exists()
         )
         assertFalse(
-            File("src/main/java/com/phuchienngo/marblemarvelous/earth/wallpapers/variations/PlutoWallpaperService.kt").exists()
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/wallpapers/variations/PlutoWallpaperService.kt").exists()
         )
-        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/shader/MoonShader.kt").exists())
-        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/shader/PlutoShader.kt").exists())
-        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/PlanetEngine.kt").exists())
-        assertFalse(File("src/main/java/com/phuchienngo/marblemarvelous/earth/wallpapers/PlanetWallpaper.kt").exists())
+        assertFalse(File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/shader/MoonShader.kt").exists())
+        assertFalse(File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/shader/PlutoShader.kt").exists())
+        assertFalse(File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/PlanetEngine.kt").exists())
+        assertFalse(File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/wallpapers/PlanetWallpaper.kt").exists())
     }
 
     private fun readSource(path: String): String = File(path).readText()
