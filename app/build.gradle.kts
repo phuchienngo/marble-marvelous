@@ -56,13 +56,6 @@ kotlin {
     }
 }
 
-configurations.all {
-    resolutionStrategy {
-        // androidx.core 1.16+ requires compileSdk 36 (not installed); pin to a 35-compatible version.
-        force("androidx.core:core:1.15.0")
-    }
-}
-
 dependencies {
     // --- libGDX 1.14.2 (native libgdx.so from gdx-platform natives in jniLibs) ---
     implementation("com.badlogicgames.gdx:gdx:1.14.2")
