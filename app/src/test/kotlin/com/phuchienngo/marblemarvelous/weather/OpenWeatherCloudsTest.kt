@@ -18,6 +18,15 @@ class OpenWeatherCloudsTest {
     }
 
     @Test
+    fun cloudRefreshDoesNotForceProcessWideGcAfterTextureUpload() {
+        val source: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/EarthEngine.kt")
+                .readText()
+
+        assertFalse(source.contains("System.gc()"))
+    }
+
+    @Test
     fun getCloudValueReturnsLumaForOpaquePixels() {
         assertEquals(OPAQUE_WHITE_CLOUD, OpenWeatherClouds.getCloudValue(WHITE))
         assertEquals(NO_CLOUD, OpenWeatherClouds.getCloudValue(BLACK))

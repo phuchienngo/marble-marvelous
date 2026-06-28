@@ -54,6 +54,22 @@ class EngineDependencyInjectionTest {
     }
 
     @Test
+    fun wallpaperEngineLifecycleUsesSharedServiceVisibilityState() {
+        val userAwareWallpaperServiceSource: String =
+            readSource(
+                "src/main/kotlin/com/phuchienngo/marblemarvelous/wallpaper/UserAwareWallpaperService.kt"
+            )
+
+        assertTrue(userAwareWallpaperServiceSource.contains("if (visibleEngines == 0)"))
+        assertTrue(userAwareWallpaperServiceSource.contains("engine?.pause()"))
+        assertFalse(
+            userAwareWallpaperServiceSource.contains(
+                "override fun onDestroy() {\n                if (engines == 0)"
+            )
+        )
+    }
+
+    @Test
     fun unusedPlanetWallpapersAreNotRegistered() {
         val manifestSource: String = readSource("src/main/AndroidManifest.xml")
         val engineComponentSource: String =

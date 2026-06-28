@@ -199,7 +199,6 @@ class EarthEngine(
             }
             nextCloudMap = null
             needsCloudsUpdate = false
-            System.gc()
         }
         sunLight!!.setIntensity(FOV_INCREASE - tweenAod.getValue())
         stars!!.setAOD(tweenAod.getValue())

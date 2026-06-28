@@ -169,20 +169,11 @@ abstract class UserAwareWallpaperService :
                 userPresenceController?.updateAmbientMode(inAmbientMode, animated)
             }
 
-            override fun onDestroy() {
-                if (engines == 0) {
-                    val currentEngine: UserAwareEngine? = engine
-                    if (currentEngine != null) {
-                        currentEngine.dispose()
-                        engine = null
-                    }
-                }
-                super.onDestroy()
-            }
-
             override fun onPause() {
                 super.onPause()
-                engine?.pause()
+                if (visibleEngines == 0) {
+                    engine?.pause()
+                }
             }
         }
 

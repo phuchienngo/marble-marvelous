@@ -1,8 +1,6 @@
 package com.phuchienngo.marblemarvelous.earth
 
-import android.graphics.BitmapFactory
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration
-import com.phuchienngo.marblemarvelous.R
 import com.phuchienngo.marblemarvelous.di.DaggerEngineComponent
 import com.phuchienngo.marblemarvelous.wallpaper.UserAwareWallpaperService
 
@@ -15,17 +13,12 @@ class EarthWallpaperService : UserAwareWallpaperService() {
         return config
     }
 
-    override fun createEngine(): UserAwareWallpaperService.UserAwareEngine {
-        BitmapFactory.decodeResource(
-            applicationContext.resources,
-            R.drawable.earth_preview_color_extractor
-        )
-        return DaggerEngineComponent
+    override fun createEngine(): UserAwareWallpaperService.UserAwareEngine =
+        DaggerEngineComponent
             .factory()
             .create(this, app)
             .earthEngineFactory()
             .create()
-    }
 
     companion object {
         const val TAG: String = "Earth"
