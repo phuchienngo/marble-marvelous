@@ -29,6 +29,29 @@ const vec3 dayCloudBaseColor = vec3(.85, .88, .90);
 const vec3 dayCloudHighlightColor = vec3(.98, .99, .98);
 const vec3 nightCloudColor = vec3(.20, .23, .28);
 
+// Unsharp mask on the day surface: the day map is a fixed 2048² texture, so the
+// only way to add apparent crispness is to boost local contrast (coastlines /
+// terrain edges). Keep it subtle to avoid halos and amplifying texture artefacts.
+const float daySharpenAmount = 0.32;
+const float daySharpenOffset = 0.0016;
+
+// Day diffuse with a 4-tap unsharp mask. Uses a continuous tangent frame (same
+// trick as sampleCloud) so there is no hard cubemap-axis seam.
+vec3 sampleDaySharp(vec3 normal) {
+    vec3 n = normalize(normal);
+    vec3 tangent = normalize(cross(n, vec3(0., 1., 0.)) + vec3(1e-4, 0., 0.));
+    vec3 bitangent = cross(n, tangent);
+
+    vec3 center = textureCube( dayMap, n ).rgb;
+    vec3 blur = textureCube( dayMap, normalize(n + tangent * daySharpenOffset) ).rgb;
+    blur += textureCube( dayMap, normalize(n - tangent * daySharpenOffset) ).rgb;
+    blur += textureCube( dayMap, normalize(n + bitangent * daySharpenOffset) ).rgb;
+    blur += textureCube( dayMap, normalize(n - bitangent * daySharpenOffset) ).rgb;
+    blur *= 0.25;
+
+    return clamp(center + (center - blur) * daySharpenAmount, 0.0, 1.0);
+}
+
 float sampleCloud(vec3 normal) {
     vec3 n = normalize(normal);
     // Continuous tangent frame: derive the blur directions smoothly so there is
@@ -83,7 +106,7 @@ void main()  {
 
     // It has part of day texture
     if (lightDirection > -0.25) {
-        dayDiff = textureCube( dayMap, vLookupNormal ).rgb;
+        dayDiff = sampleDaySharp(vLookupNormal);
         dayDiff *= 1. - cloudShadowCoverage * cloudIntensityDay * cloudShadowIntensity; // Shadow
         dayDiff = mix(dayDiff, dayCloudColor, dayCloudOpacity); // Color
         base = dayDiff;
