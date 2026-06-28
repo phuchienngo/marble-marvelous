@@ -18,7 +18,7 @@ class EarthWallpaperService : UserAwareWallpaperService() {
     override fun createEngine(): UserAwareWallpaperService.UserAwareEngine {
         BitmapFactory.decodeResource(
             applicationContext.resources,
-            R.drawable.earth_preview_color_extractor,
+            R.drawable.earth_preview_color_extractor
         )
         return DaggerEngineComponent
             .factory()

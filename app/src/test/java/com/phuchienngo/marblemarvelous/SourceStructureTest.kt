@@ -9,12 +9,12 @@ class SourceStructureTest {
     private val topLevelTypeRegex: Regex =
         Regex(
             "^(public |private |internal |abstract |sealed |data |open |enum |annotation |value )*" +
-                "(class|interface|object|enum class|annotation class)\\b",
+                "(class|interface|object|enum class|annotation class)\\b"
         )
 
     @Test
     fun sourceTreeUsesMarbleSpecificPackages() {
-        val sourceRoot = File("src/main/java/com/phuchienngo/marblemarvelous")
+        val sourceRoot: File = File("src/main/java/com/phuchienngo/marblemarvelous")
         val sourceFiles: List<File> =
             sourceRoot
                 .walkTopDown()
@@ -44,13 +44,13 @@ class SourceStructureTest {
         val roots: List<File> =
             listOf(
                 File("src/main"),
-                File("src/test"),
+                File("src/test")
             )
         val violations: List<String> =
             roots
                 .flatMap { root: File ->
-                    return@flatMap root.walkTopDown().filter { file: File ->
-                        return@filter file.isFile && (file.extension == "java" || file.extension == "proto")
+                    return@flatMap root.walkTopDown().filter sourceFileFilter@{ file: File ->
+                        return@sourceFileFilter file.isFile && (file.extension == "java" || file.extension == "proto")
                     }
                 }.map { sourceFile: File ->
                     return@map sourceFile.path
@@ -58,7 +58,7 @@ class SourceStructureTest {
 
         assertTrue(
             "Remove or convert Java/proto sources:\n${violations.joinToString(separator = "\n")}",
-            violations.isEmpty(),
+            violations.isEmpty()
         )
     }
 
@@ -79,7 +79,7 @@ class SourceStructureTest {
 
     @Test
     fun assetsUseMarbleSpecificShaderDirectory() {
-        val assetsRoot = File("src/main/assets")
+        val assetsRoot: File = File("src/main/assets")
 
         assertTrue(File(assetsRoot, "marble/earthMask.frag").exists())
         assertTrue(File(assetsRoot, "marble/earthMask.vert").exists())
@@ -91,7 +91,7 @@ class SourceStructureTest {
         val roots: List<File> =
             listOf(
                 File("src/main/java/com/phuchienngo/marblemarvelous"),
-                File("src/test/java/com/phuchienngo/marblemarvelous"),
+                File("src/test/java/com/phuchienngo/marblemarvelous")
             )
         val violations: List<String> =
             roots
@@ -107,7 +107,7 @@ class SourceStructureTest {
 
         assertTrue(
             "Move extra top-level types into their own files:\n${violations.joinToString(separator = "\n")}",
-            violations.isEmpty(),
+            violations.isEmpty()
         )
     }
 

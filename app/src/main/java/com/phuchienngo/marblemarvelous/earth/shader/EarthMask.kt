@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.g3d.Environment
 import com.badlogic.gdx.graphics.g3d.Renderable
 import com.badlogic.gdx.graphics.g3d.RenderableProvider
+import com.badlogic.gdx.graphics.g3d.environment.PointLight
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute
 import com.badlogic.gdx.graphics.g3d.utils.RenderContext
 import com.badlogic.gdx.graphics.glutils.FrameBuffer
@@ -21,18 +22,19 @@ import com.phuchienngo.marblemarvelous.utils.Size
 
 class EarthMask {
     private var mAod = 0.0f
-    private val mLightDirection = Vector3()
-    private val mModelViewMatrix = Matrix4()
-    private val mNormalMatrix = Matrix4()
+    private val mLightDirection: Vector3 = Vector3()
+    private val mModelViewMatrix: Matrix4 = Matrix4()
+    private val mNormalMatrix: Matrix4 = Matrix4()
     private var rimFadeStart = 0.98f
     private var rimFadeEnd = 1.0f
     private var dFov = 0.0f
     private val maskShader: ShaderProgram = ShaderUtils.load("marble/earthMask")
-    private val renderablesPool = RenderablePool()
-    private val renderables = Array<Renderable>()
-    private val fboSize = Size(256.0f, 256.0f)
-    private val mCamera = PerspectiveCamera()
-    private val fbo = FrameBuffer(Pixmap.Format.RGBA8888, fboSize.getWidth().toInt(), fboSize.getHeight().toInt(), false)
+    private val renderablesPool: RenderablePool = RenderablePool()
+    private val renderables: Array<Renderable> = Array<Renderable>()
+    private val fboSize: Size = Size(256.0f, 256.0f)
+    private val mCamera: PerspectiveCamera = PerspectiveCamera()
+    private val fbo: FrameBuffer =
+        FrameBuffer(Pixmap.Format.RGBA8888, fboSize.getWidth().toInt(), fboSize.getHeight().toInt(), HAS_DEPTH)
 
     init {
         fbo.colorBufferTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
@@ -40,7 +42,7 @@ class EarthMask {
 
     fun begin(
         camera: PerspectiveCamera,
-        renderContext: RenderContext?,
+        renderContext: RenderContext?
     ) {
         mCamera.far = camera.far
         mCamera.near = camera.near
@@ -58,7 +60,7 @@ class EarthMask {
         if (renderContext != null) {
             renderContext.setDepthTest(GL20.GL_LEQUAL)
             renderContext.setCullFace(GL20.GL_BACK)
-            renderContext.setBlending(true, GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA)
+            renderContext.setBlending(BLENDING_ENABLED, GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA)
         } else {
             Gdx.gl.glCullFace(GL20.GL_BACK)
             Gdx.gl.glEnable(GL20.GL_BLEND)
@@ -68,11 +70,13 @@ class EarthMask {
 
     fun render(renderable: Renderable) {
         mNormalMatrix.set(mCamera.view).mul(renderable.worldTransform)
-        if (mNormalMatrix.det() == 0.0f) return
+        if (mNormalMatrix.det() == 0.0f) {
+            return
+        }
         mNormalMatrix.inv().tra()
         mModelViewMatrix.set(mCamera.view).mul(renderable.worldTransform)
-        val attr = renderable.environment.get(PointLightsAttribute.Type) as PointLightsAttribute
-        val sunLight = attr.lights.first()
+        val attr: PointLightsAttribute = renderable.environment.get(PointLightsAttribute.Type) as PointLightsAttribute
+        val sunLight: PointLight = attr.lights.first()
         mLightDirection.set(sunLight.position).mul(mCamera.view).nor()
         maskShader.setUniformf("u_lightDirection", mLightDirection)
         maskShader.setUniformf("u_aod", mAod)
@@ -88,13 +92,13 @@ class EarthMask {
 
     fun render(
         renderableProvider: RenderableProvider,
-        environment: Environment,
+        environment: Environment
     ) {
-        val offset = renderables.size
+        val offset: Int = renderables.size
         renderableProvider.getRenderables(renderables, renderablesPool)
         var i = offset
         while (i < renderables.size) {
-            val r = renderables.get(i)
+            val r: Renderable = renderables.get(i)
             r.environment = environment
             render(r)
             i++
@@ -121,7 +125,7 @@ class EarthMask {
 
     fun setRimFade(
         rimFadeStart: Float,
-        rimFadeEnd: Float,
+        rimFadeEnd: Float
     ) {
         this.rimFadeStart = rimFadeStart
         this.rimFadeEnd = rimFadeEnd
@@ -134,13 +138,19 @@ class EarthMask {
     private class RenderablePool : FlushablePool<Renderable>() {
         override fun newObject(): Renderable = Renderable()
 
-        override fun obtain(): Renderable =
-            super.obtain().apply {
-                environment = null
-                material = null
-                meshPart.set("", null, 0, 0, 0)
-                shader = null
-                userData = null
-            }
+        override fun obtain(): Renderable {
+            val renderable: Renderable = super.obtain()
+            renderable.environment = null
+            renderable.material = null
+            renderable.meshPart.set("", null, 0, 0, 0)
+            renderable.shader = null
+            renderable.userData = null
+            return renderable
+        }
+    }
+
+    companion object {
+        private const val BLENDING_ENABLED: Boolean = true
+        private const val HAS_DEPTH: Boolean = false
     }
 }

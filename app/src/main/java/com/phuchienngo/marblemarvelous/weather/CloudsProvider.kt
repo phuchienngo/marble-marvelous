@@ -30,7 +30,7 @@ class CloudsProvider(
     private val openWeatherClouds: OpenWeatherClouds,
     private val apiKey: String,
     mainDispatcher: CoroutineDispatcher,
-    private val callback: Callback,
+    private val callback: Callback
 ) {
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + mainDispatcher)
 
@@ -48,14 +48,14 @@ class CloudsProvider(
             positiveY: FileHandle,
             negativeY: FileHandle,
             positiveZ: FileHandle,
-            negativeZ: FileHandle,
+            negativeZ: FileHandle
         ) : FacedCubemapData(
                 null as TextureData?,
                 null,
                 null,
                 null,
                 null,
-                null,
+                null
             ) {
             private val pixMaps: Array<Pixmap>
 
@@ -68,7 +68,7 @@ class CloudsProvider(
                             Pixmap(positiveY),
                             Pixmap(negativeY),
                             Pixmap(positiveZ),
-                            Pixmap(negativeZ),
+                            Pixmap(negativeZ)
                         )
                     val useMipMaps: Boolean = false
                     val disposePixmap: Boolean = false
@@ -91,7 +91,7 @@ class CloudsProvider(
         if (!ConnectionUtils.hasConnection(context)) {
             return
         }
-        val now = Date()
+        val now: Date = Date()
         if (CloudRefreshPolicy.shouldRefresh(lastUpdate, now)) {
             lastUpdate = now
             runCloudUpdate()
@@ -112,7 +112,7 @@ class CloudsProvider(
                 Gdx.files.absolute(context.cacheDir.toString() + "/py.png"),
                 Gdx.files.absolute(context.cacheDir.toString() + "/ny.png"),
                 Gdx.files.absolute(context.cacheDir.toString() + "/pz.png"),
-                Gdx.files.absolute(context.cacheDir.toString() + "/nz.png"),
+                Gdx.files.absolute(context.cacheDir.toString() + "/nz.png")
             )
         } catch (e: IOException) {
             Log.w(TAG, e)
@@ -157,7 +157,7 @@ class CloudsProvider(
             private val context: Context,
             private val openWeatherClouds: OpenWeatherClouds,
             @param:OpenWeatherApiKey private val apiKey: String,
-            @param:MainDispatcher private val mainDispatcher: CoroutineDispatcher,
+            @param:MainDispatcher private val mainDispatcher: CoroutineDispatcher
         ) {
             fun create(callback: Callback): CloudsProvider = CloudsProvider(context, openWeatherClouds, apiKey, mainDispatcher, callback)
         }

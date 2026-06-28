@@ -14,7 +14,7 @@ class ChargingController
     @Inject
     constructor(
         context: Context,
-        private val listener: ChargingListener,
+        private val listener: ChargingListener
     ) : ViewController(context) {
         private var chargingState: AtomicBoolean? = null
 
@@ -29,14 +29,14 @@ class ChargingController
         override fun onBroadcastReceived(
             context: Context,
             intent: Intent,
-            action: String,
+            action: String
         ) {
             if (action == "android.intent.action.ACTION_POWER_DISCONNECTED" ||
                 action == "android.intent.action.ACTION_POWER_CONNECTED"
             ) {
                 updateChargingState(
                     charging = action == "android.intent.action.ACTION_POWER_CONNECTED",
-                    fire = true,
+                    fire = true
                 )
             }
         }
@@ -65,7 +65,7 @@ class ChargingController
 
         private fun updateChargingState(
             charging: Boolean,
-            fire: Boolean,
+            fire: Boolean
         ) {
             chargingState!!.set(charging)
             if (fire) {

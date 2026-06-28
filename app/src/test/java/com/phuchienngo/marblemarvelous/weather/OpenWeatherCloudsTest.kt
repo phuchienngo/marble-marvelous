@@ -41,7 +41,7 @@ class OpenWeatherCloudsTest {
                 BLACK,
                 BLACK,
                 BLACK,
-                BLACK,
+                BLACK
             )
 
         val actual: IntArray = OpenWeatherClouds.smoothCloudFace(pixels, width = 3, height = 3)
@@ -59,12 +59,13 @@ class OpenWeatherCloudsTest {
             writeTile(tileDirectory, x = 1, y = 0, values = byteArrayOf(20, 30, 60, 70))
             writeTile(tileDirectory, x = 0, y = 1, values = byteArrayOf(80, 90, 120, 130.toByte()))
             writeTile(tileDirectory, x = 1, y = 1, values = byteArrayOf(100, 110, 140.toByte(), 150.toByte()))
-            val source =
+            val source: OpenWeatherClouds.TiledCloudSource =
                 OpenWeatherClouds.TiledCloudSource(
                     tileDirectory = tileDirectory,
                     tilesPerAxis = 2,
                     tileSize = 2,
                     maxCachedTiles = 2,
+                    tileLoader = null
                 )
 
             val acrossXAndY: Int? = source.sample(sourceX = 1.5, sourceY = 1.5)
@@ -72,6 +73,7 @@ class OpenWeatherCloudsTest {
 
             assertEquals(BOUNDARY_CLOUD, acrossXAndY)
             assertEquals(WRAPPED_CLOUD, wrappedAcrossDateLine)
+            return@runBlocking
         }
 
     @Test
@@ -79,22 +81,22 @@ class OpenWeatherCloudsTest {
         runBlocking {
             val tileDirectory: File = createTileDirectory()
             val requestedTiles: MutableList<String> = mutableListOf()
-            val source =
+            val source: OpenWeatherClouds.TiledCloudSource =
                 OpenWeatherClouds.TiledCloudSource(
                     tileDirectory = tileDirectory,
                     tilesPerAxis = 2,
                     tileSize = 2,
                     maxCachedTiles = 2,
                     tileLoader =
-                        OpenWeatherClouds.TileLoader { x: Int, y: Int ->
+                        OpenWeatherClouds.TileLoader loadTestTile@{ x: Int, y: Int ->
                             requestedTiles.add("$x-$y")
-                            return@TileLoader byteArrayOf(
+                            return@loadTestTile byteArrayOf(
                                 LOADED_CLOUD.toByte(),
                                 LOADED_CLOUD.toByte(),
                                 LOADED_CLOUD.toByte(),
-                                LOADED_CLOUD.toByte(),
+                                LOADED_CLOUD.toByte()
                             )
-                        },
+                        }
                 )
 
             val firstSample: Int? = source.sample(sourceX = 0.0, sourceY = 0.0)
@@ -104,6 +106,7 @@ class OpenWeatherCloudsTest {
             assertEquals(LOADED_CLOUD, secondSample)
             assertEquals(listOf("0-0"), requestedTiles)
             assertTrue(OpenWeatherClouds.tileFile(tileDirectory, x = 0, y = 0).exists())
+            return@runBlocking
         }
 
     @Test
@@ -114,12 +117,13 @@ class OpenWeatherCloudsTest {
             writeTile(tileDirectory, x = 1, y = 0, values = byteArrayOf(10, 10, 10, 10))
             writeTile(tileDirectory, x = 0, y = 1, values = byteArrayOf(20, 20, 20, 20))
             writeTile(tileDirectory, x = 1, y = 1, values = byteArrayOf(30, 30, 30, 30))
-            val source =
+            val source: OpenWeatherClouds.TiledCloudSource =
                 OpenWeatherClouds.TiledCloudSource(
                     tileDirectory = tileDirectory,
                     tilesPerAxis = 2,
                     tileSize = 2,
                     maxCachedTiles = 2,
+                    tileLoader = null
                 )
 
             source.sample(sourceX = 0.0, sourceY = 0.0)
@@ -127,13 +131,14 @@ class OpenWeatherCloudsTest {
             source.sample(sourceX = 0.0, sourceY = 2.0)
 
             assertTrue(source.cachedTileCount() <= 2)
+            return@runBlocking
         }
 
     private fun createTileDirectory(): File {
-        val directory =
+        val directory: File =
             File(
                 System.getProperty("java.io.tmpdir"),
-                "openweather-clouds-test-${System.nanoTime()}",
+                "openweather-clouds-test-${System.nanoTime()}"
             )
         directory.mkdirs()
         return directory
@@ -143,7 +148,7 @@ class OpenWeatherCloudsTest {
         directory: File,
         x: Int,
         y: Int,
-        values: ByteArray,
+        values: ByteArray
     ) {
         OpenWeatherClouds
             .tileFile(directory, x, y)

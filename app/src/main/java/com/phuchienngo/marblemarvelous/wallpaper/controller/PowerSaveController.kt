@@ -14,7 +14,7 @@ class PowerSaveController
     @Inject
     constructor(
         context: Context,
-        private val listener: PowerSaveListener,
+        private val listener: PowerSaveListener
     ) : ViewController(context) {
         private var powerManager: PowerManager? = null
         private var savingPower: AtomicBoolean? = null
@@ -33,7 +33,7 @@ class PowerSaveController
         override fun onBroadcastReceived(
             context: Context,
             intent: Intent,
-            action: String,
+            action: String
         ) {
             if (action == "android.os.action.POWER_SAVE_MODE_CHANGED") {
                 setSavingPower(isPowerSave = powerManager!!.isPowerSaveMode, fire = true)
@@ -51,7 +51,7 @@ class PowerSaveController
 
         private fun setSavingPower(
             isPowerSave: Boolean,
-            fire: Boolean,
+            fire: Boolean
         ) {
             if (savingPower!!.get() == isPowerSave) {
                 return

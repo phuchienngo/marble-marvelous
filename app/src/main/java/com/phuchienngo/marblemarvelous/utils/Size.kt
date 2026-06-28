@@ -1,10 +1,10 @@
 package com.phuchienngo.marblemarvelous.utils
 
-import kotlin.math.*
+import kotlin.math.sqrt
 
 class Size(
     private var width: Float,
-    private var height: Float,
+    private var height: Float
 ) {
     constructor() : this(1.0f, 1.0f)
 
@@ -23,32 +23,39 @@ class Size(
     fun set(size: Size) = set(size.width, size.height)
 
     fun switchSizes() {
-        val weightTmp = width
+        val weightTmp: Float = width
         width = height
         height = weightTmp
     }
 
     fun set(
         width: Float,
-        height: Float,
+        height: Float
     ) {
         this.width = width
         this.height = height
     }
 
     override fun equals(other: Any?): Boolean {
-        if (other !is Size) return false
+        if (other !is Size) {
+            return false
+        }
         return other.width == width && other.height == height
     }
 
     override fun hashCode(): Int = 31 * width.hashCode() + height.hashCode()
 
-    fun getAspectRatio(): Float = if (height == 0.0f) -1.0f else width / height
+    fun getAspectRatio(): Float =
+        if (height == 0.0f) {
+            -1.0f
+        } else {
+            width / height
+        }
 
     fun getDiagonalLength(): Float = sqrt((width * width + height * height).toDouble()).toFloat()
 
     companion object {
         @JvmField
-        val Unit = Size()
+        val Unit: Size = Size()
     }
 }

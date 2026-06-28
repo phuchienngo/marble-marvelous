@@ -7,21 +7,21 @@ import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 object ShaderUtils {
-    const val METHOD_INCLUDE_REGEX = "#include\\s+(<([^>]+)>|\"([^\"]+)\")"
-    const val METHOD_REGEX = "#include\\s+SHADER_METHODS"
+    const val METHOD_INCLUDE_REGEX: String = "#include\\s+(<([^>]+)>|\"([^\"]+)\")"
+    const val METHOD_REGEX: String = "#include\\s+SHADER_METHODS"
 
     @JvmStatic
     fun loadShaderWithMethods(
         shaderPath: String,
-        vararg methodsPaths: String,
+        vararg methodsPaths: String
     ): String {
-        val methodsToAdd = StringBuilder()
+        val methodsToAdd: StringBuilder = StringBuilder()
         for (methodPath in methodsPaths) {
             methodsToAdd.append("\n")
             methodsToAdd.append(loadShader(methodPath))
             methodsToAdd.append("\n")
         }
-        val shaderContent = replaceShaderMethods(loadShader(shaderPath), methodsToAdd.toString())
+        val shaderContent: String = replaceShaderMethods(loadShader(shaderPath), methodsToAdd.toString())
         Console.log("ShaderUtil", shaderContent)
         return shaderContent
     }
@@ -49,26 +49,28 @@ object ShaderUtils {
     @JvmStatic
     fun load(
         vertexShaderContent: String,
-        fragmentShaderContent: String,
+        fragmentShaderContent: String
     ): ShaderProgram {
-        val shader =
+        val shader: ShaderProgram =
             ShaderProgram(
                 replaceIncludeFiles(vertexShaderContent),
-                replaceIncludeFiles(fragmentShaderContent),
+                replaceIncludeFiles(fragmentShaderContent)
             )
-        if (!shader.isCompiled) throw RuntimeException(shader.log)
+        if (!shader.isCompiled) {
+            throw RuntimeException(shader.log)
+        }
         return shader
     }
 
     @JvmStatic
     fun replaceIncludeFiles(shaderContent: String): String {
-        val pattern = Pattern.compile(METHOD_INCLUDE_REGEX)
-        val matcher = pattern.matcher(shaderContent)
-        val sb = StringBuffer(shaderContent.length)
+        val pattern: Pattern = Pattern.compile(METHOD_INCLUDE_REGEX)
+        val matcher: Matcher = pattern.matcher(shaderContent)
+        val sb: StringBuffer = StringBuffer(shaderContent.length)
         while (matcher.find()) {
-            val angleBrackets = matcher.group(2)
-            val quotationMarks = matcher.group(3)
-            val file = angleBrackets ?: (quotationMarks ?: "")
+            val angleBrackets: String? = matcher.group(2)
+            val quotationMarks: String? = matcher.group(3)
+            val file: String = angleBrackets ?: (quotationMarks ?: "")
             matcher.appendReplacement(sb, Matcher.quoteReplacement(loadShader(file)))
         }
         matcher.appendTail(sb)
@@ -78,11 +80,11 @@ object ShaderUtils {
     @JvmStatic
     fun replaceShaderMethods(
         shaderContent: String,
-        shaderFunctionsContent: String,
+        shaderFunctionsContent: String
     ): String {
-        val pattern = Pattern.compile(METHOD_REGEX)
-        val matcher = pattern.matcher(shaderContent)
-        val sb = StringBuffer(shaderContent.length)
+        val pattern: Pattern = Pattern.compile(METHOD_REGEX)
+        val matcher: Matcher = pattern.matcher(shaderContent)
+        val sb: StringBuffer = StringBuffer(shaderContent.length)
         while (matcher.find()) {
             matcher.group()
             matcher.appendReplacement(sb, Matcher.quoteReplacement(shaderFunctionsContent))

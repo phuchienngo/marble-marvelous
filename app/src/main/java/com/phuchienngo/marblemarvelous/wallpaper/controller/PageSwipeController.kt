@@ -15,7 +15,7 @@ class PageSwipeController {
     fun getPageOffsetRaw(): Float = lastOffset
 
     fun update(delta: Float): Boolean {
-        val ease = (lastOffset - easedOffset) * delta * pageSwipeDamping
+        val ease: Float = (lastOffset - easedOffset) * delta * pageSwipeDamping
         easedOffset += ease
         return abs(ease) > 1.0E-4f
     }
@@ -26,17 +26,22 @@ class PageSwipeController {
 
     fun setPageSwipe(
         xOffset: Float,
-        xOffsetStep: Float,
+        xOffsetStep: Float
     ) {
-        val numSteps = (1.0f / xOffsetStep).roundToInt()
-        val offsetStretch = min((numSteps / minStepsToSwipe).toFloat(), 1.0f)
+        val numSteps: Int = (1.0f / xOffsetStep).roundToInt()
+        val offsetStretch: Float = min((numSteps / minStepsToSwipe).toFloat(), 1.0f)
         lastOffset = xOffset * offsetStretch
     }
 
     fun differenceBiggerThan(value: Float): Boolean = abs(lastOffset - easedOffset) > value
 
     fun setMinPagesToSwipe(minPagesToSwipe: Int) {
-        minStepsToSwipe = if (minPagesToSwipe < 2) 1 else minPagesToSwipe - 1
+        minStepsToSwipe =
+            if (minPagesToSwipe < 2) {
+                1
+            } else {
+                minPagesToSwipe - 1
+            }
     }
 
     fun setPageSwipeDamping(pageSwipeDamping: Float) {

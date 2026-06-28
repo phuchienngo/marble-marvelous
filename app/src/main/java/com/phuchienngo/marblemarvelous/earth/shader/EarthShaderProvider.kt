@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.g3d.Renderable
 import com.badlogic.gdx.graphics.g3d.Shader
 import com.badlogic.gdx.graphics.g3d.attributes.CubemapAttribute
 import com.badlogic.gdx.graphics.g3d.attributes.PointLightsAttribute
+import com.badlogic.gdx.graphics.g3d.environment.PointLight
 import com.badlogic.gdx.graphics.g3d.shaders.BaseShader
 import com.badlogic.gdx.graphics.g3d.utils.DefaultShaderProvider
 import com.badlogic.gdx.graphics.glutils.ShaderProgram
@@ -26,18 +27,18 @@ class EarthShaderProvider : DefaultShaderProvider() {
         }
 
     private class EarthShader(
-        private val renderable: Renderable,
+        private val renderable: Renderable
     ) : BaseShader() {
         private var cloudShadowMatrix: Matrix4? = null
         private var cloudTransformMatrix: Matrix4? = null
         private var shader: ShaderProgram? = null
-        private val rimColor1 = Color(0.39f, 0.44f, 0.5f, 0.8f)
-        private val rimColor2 = Color(0.92941177f, 0.27450982f, 0.05882353f, 0.8f)
-        private val atmosphereColor1 = Color(0.6784314f, 0.8235294f, 0.9411765f, 0.4f)
-        private val atmosphereColor2 = Color(0.38039216f, 0.69411767f, 0.9490196f, 0.85f)
-        private val tmpMatrix = Matrix4()
-        private val tmpModelMatrix = Matrix4()
-        private val tmpLightPos = Vector3()
+        private val rimColor1: Color = Color(0.39f, 0.44f, 0.5f, 0.8f)
+        private val rimColor2: Color = Color(0.92941177f, 0.27450982f, 0.05882353f, 0.8f)
+        private val atmosphereColor1: Color = Color(0.6784314f, 0.8235294f, 0.9411765f, 0.4f)
+        private val atmosphereColor2: Color = Color(0.38039216f, 0.69411767f, 0.9490196f, 0.85f)
+        private val tmpMatrix: Matrix4 = Matrix4()
+        private val tmpModelMatrix: Matrix4 = Matrix4()
+        private val tmpLightPos: Vector3 = Vector3()
 
         override fun init() {
             shader = ShaderUtils.load("earth/earth")
@@ -49,16 +50,21 @@ class EarthShaderProvider : DefaultShaderProvider() {
             init(shader, renderable)
         }
 
-        override fun compareTo(other: Shader): Int = if (other === this) 0 else 1
+        override fun compareTo(other: Shader): Int =
+            if (other === this) {
+                0
+            } else {
+                1
+            }
 
         override fun canRender(renderable: Renderable): Boolean = renderable.userData == "earth"
 
         override fun render(renderable: Renderable) {
-            val pointLights = renderable.environment.get(PointLightsAttribute.Type) as PointLightsAttribute
-            val sunLight = pointLights.lights.first()
-            val day = renderable.material.get(EarthTextureAttribute.DAY_DIFFUSE) as EarthTextureAttribute
-            val night = renderable.material.get(EarthTextureAttribute.NIGHT_DIFFUSE) as EarthTextureAttribute
-            val clouds = renderable.environment.get(CubemapAttribute.EnvironmentMap) as CubemapAttribute
+            val pointLights: PointLightsAttribute = renderable.environment.get(PointLightsAttribute.Type) as PointLightsAttribute
+            val sunLight: PointLight = pointLights.lights.first()
+            val day: EarthTextureAttribute = renderable.material.get(EarthTextureAttribute.DAY_DIFFUSE) as EarthTextureAttribute
+            val night: EarthTextureAttribute = renderable.material.get(EarthTextureAttribute.NIGHT_DIFFUSE) as EarthTextureAttribute
+            val clouds: CubemapAttribute = renderable.environment.get(CubemapAttribute.EnvironmentMap) as CubemapAttribute
             Gdx.gl.glEnable(GL20.GL_BLEND)
             Gdx.gl.glEnable(GL20.GL_CULL_FACE)
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA)
@@ -93,8 +99,9 @@ class EarthShaderProvider : DefaultShaderProvider() {
         }
 
         override fun dispose() {
-            shader?.let {
-                it.dispose()
+            val currentShader: ShaderProgram? = shader
+            if (currentShader != null) {
+                currentShader.dispose()
                 shader = null
             }
             super.dispose()

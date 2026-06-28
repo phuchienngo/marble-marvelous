@@ -39,7 +39,7 @@ interface WallpaperComponent {
             @BindsInstance powerSaveListener: PowerSaveListener,
             @BindsInstance screenOrientationListener: ScreenOrientationListener,
             @BindsInstance chargingListener: ChargingListener,
-            @BindsInstance touchListener: TouchListener,
+            @BindsInstance touchListener: TouchListener
         ): WallpaperComponent
     }
 }

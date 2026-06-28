@@ -9,12 +9,12 @@ object CompressionUtils {
     @JvmStatic
     @Throws(DataFormatException::class, IOException::class)
     fun decompress(data: ByteArray): ByteArray {
-        val inflater = Inflater()
-        val outputStream = ByteArrayOutputStream(data.size)
-        val dataChunk = ByteArray(1024)
+        val inflater: Inflater = Inflater()
+        val outputStream: ByteArrayOutputStream = ByteArrayOutputStream(data.size)
+        val dataChunk: ByteArray = ByteArray(1024)
         inflater.setInput(data)
         while (!inflater.finished()) {
-            val n = inflater.inflate(dataChunk)
+            val n: Int = inflater.inflate(dataChunk)
             outputStream.write(dataChunk, 0, n)
         }
         inflater.end()

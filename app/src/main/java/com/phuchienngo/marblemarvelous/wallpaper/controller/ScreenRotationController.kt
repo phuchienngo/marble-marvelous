@@ -15,7 +15,7 @@ class ScreenRotationController
     @Inject
     constructor(
         context: Context,
-        private val listener: ScreenOrientationListener,
+        private val listener: ScreenOrientationListener
     ) {
         enum class ScreenRotation {
             PORTRAIT,
@@ -33,7 +33,7 @@ class ScreenRotationController
             private set
 
         private class DisplayOrientationListener(
-            controller: ScreenRotationController,
+            controller: ScreenRotationController
         ) : DisplayManager.DisplayListener {
             private val mWeakReference: WeakReference<ScreenRotationController> = WeakReference(controller)
 
