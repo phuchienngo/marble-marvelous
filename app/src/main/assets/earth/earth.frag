@@ -1,4 +1,4 @@
-precision lowp float;
+precision mediump float;
 
 uniform samplerCube dayMap;
 uniform samplerCube nightMap;
@@ -16,14 +16,38 @@ varying vec3 vEye, vLookupNormal;
 varying vec3 vCloudNormal, vCloudShadowNormal;
 varying vec3 vNormal;
 
-const float cloudIntensityDay = 0.9;
-const float cloudIntensityNight = 0.6;
-const float cloudShadowIntensity = 0.5;
+const float cloudIntensityDay = 0.62;
+const float cloudIntensityNight = 0.36;
+const float cloudShadowIntensity = 0.34;
+const float cloudBlurOffset = 0.0045;
 
 const float lightShinePhase = 1.;
 const float lightsRandomness = 30.;
 
-const vec3 nightCloudColor = vec3(.26, .29, .34);
+const vec3 dayCloudShadowColor = vec3(.60, .65, .70);
+const vec3 dayCloudBaseColor = vec3(.85, .88, .90);
+const vec3 dayCloudHighlightColor = vec3(.98, .99, .98);
+const vec3 nightCloudColor = vec3(.20, .23, .28);
+
+float sampleCloud(vec3 normal) {
+    vec3 n = normalize(normal);
+    // Continuous tangent frame: derive the blur directions smoothly so there is
+    // NO hard latitude switch (the old `if (abs(n.y) > .75)` flipped the basis at
+    // one latitude and drew a visible stripe across the globe). The frame is only
+    // degenerate at the exact poles (a single point), which is invisible.
+    vec3 tangent = normalize(cross(n, vec3(0., 1., 0.)) + vec3(1e-4, 0., 0.));
+    vec3 bitangent = cross(n, tangent);
+
+    // 5-tap blur, center-weighted: just enough to anti-alias the low-res cloud
+    // cubemap / cube seams WITHOUT washing out detail (clouds were softer than the
+    // 2048² earth map; this keeps the edges crisper than an even blur would).
+    float cloud = textureCube( cloudMap, n ).r * .64;
+    cloud += textureCube( cloudMap, normalize(n + tangent * cloudBlurOffset) ).r * .09;
+    cloud += textureCube( cloudMap, normalize(n - tangent * cloudBlurOffset) ).r * .09;
+    cloud += textureCube( cloudMap, normalize(n + bitangent * cloudBlurOffset) ).r * .09;
+    cloud += textureCube( cloudMap, normalize(n - bitangent * cloudBlurOffset) ).r * .09;
+    return cloud;
+}
 
 void main()  {
     vec3 lPos = lightPosition;
@@ -39,15 +63,29 @@ void main()  {
     vec3 base = vec3(0.);
 
     // Add clouds
-    float cloudColor = textureCube( cloudMap, vCloudNormal ).r;
-    float cloudShadow = textureCube( cloudMap, vCloudShadowNormal ).r;
+    float cloudColor = sampleCloud(vCloudNormal);
+    float cloudShadow = sampleCloud(vCloudShadowNormal);
+    // Single soft coverage ramp instead of several stacked smoothsteps — stacking
+    // discrete thresholds on the low-res cloud map quantized into contour stripes.
+    float cloudCoverage = smoothstep(0.05, 0.55, cloudColor);
+    float cloudShadowCoverage = smoothstep(0.06, 0.58, cloudShadow);
+    // Soft relief from the shadow-offset parallax sample: where the cloud is
+    // thicker than its offset neighbour it reads as a lit, raised top.
+    float cloudRelief = clamp((cloudColor - cloudShadow) * 2.0 + .50, 0., 1.);
+    float cloudSun = smoothstep(-.20, .80, lightDirection);
+    float dayCloudOpacity = cloudIntensityDay * cloudCoverage * (.55 + cloudRelief * .35);
+    float nightCloudOpacity = cloudIntensityNight * cloudCoverage * (.70 + cloudRelief * .25);
+    vec3 dayCloudColor = mix(dayCloudBaseColor, dayCloudHighlightColor, cloudRelief);
+    dayCloudColor = mix(dayCloudColor, dayCloudShadowColor, (1. - cloudRelief) * .32);
+    dayCloudColor *= .90 + cloudSun * .12;
+    vec3 nightCloudLitColor = mix(nightCloudColor * .78, nightCloudColor, cloudRelief);
     vec3 dayDiff = vec3(1.);
 
     // It has part of day texture
     if (lightDirection > -0.25) {
         dayDiff = textureCube( dayMap, vLookupNormal ).rgb;
-        dayDiff = mix(dayDiff, vec3(0.), cloudShadow * cloudIntensityDay * cloudShadowIntensity); // Shadow
-        dayDiff = mix(dayDiff, vec3(1.0), cloudColor * cloudIntensityDay); // Color
+        dayDiff *= 1. - cloudShadowCoverage * cloudIntensityDay * cloudShadowIntensity; // Shadow
+        dayDiff = mix(dayDiff, dayCloudColor, dayCloudOpacity); // Color
         base = dayDiff;
     }
 
@@ -77,13 +115,13 @@ void main()  {
         float nightRim = smoothstep(0., 0.8, 1. - eyeLight);
         nightDiff -= nightRim * 0.05;
         // Clouds at night
-        nightDiff = mix(nightDiff, nightCloudColor, cloudColor * cloudIntensityNight);
+        nightDiff = mix(nightDiff, nightCloudLitColor, nightCloudOpacity);
         nightDiff *= smoothstep(0., 1., eyeLight);
         vec3 nightDiffNoLight = mix(nightDiff, min(nightDiff, vec3(0.08, 0.09, 0.13)), smoothstep(0., .13, length(nightDiff) / 1.73205080757));
 
         // Add storms
         float storms = textureCube( stormsMap, vCloudNormal ).r;
-        vec3 stormsVec = vec3(0.8, 0.8, 1.) * .9 * storms * smoothstep(0.72, 0.82, cloudColor);
+        vec3 stormsVec = vec3(0.8, 0.8, 1.) * .9 * storms * smoothstep(0.35, 0.80, cloudCoverage);
         stormsVec *= smoothstep(0.2, 1., eyeLight); // Don't display storms around the edge of the earth
         nightDiff += stormsVec;
 
@@ -104,8 +142,8 @@ void main()  {
     // Equivalent to spechShine ^ 16 * 0.4)
     specShine = smoothstep(0.7, 1.11, specShine) * 0.4;
     vec3 specColor = mix(vec3(1.00, 0.66, 0.44), vec3(.2), eyeLight);
-    specColor -= cloudShadow * .5;
-    specShine *= .4 + (1. - cloudColor) * .6;
+    specColor -= cloudShadowCoverage * .28;
+    specShine *= .30 + (1. - dayCloudOpacity) * .70;
     specShine *= smoothstep(-1.5, 1., dayDiff.b - dayDiff.r - dayDiff.g);
     base += (specColor * specShine + specShine * specColor * (1. - smoothstep(.2, .5, eyeLight)) * 7.) * lightIntensity;
 

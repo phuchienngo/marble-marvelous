@@ -201,11 +201,11 @@ class EarthEngine(
         tweenAod.update(delta)
         tweenZoom.update(delta)
         if (nextCloudMap != null && needsCloudsUpdate) {
+            val pending: CubemapData? = nextCloudMap
             cloudsTexture?.dispose()
-            cloudsTexture = Cubemap(nextCloudMap)
+            cloudsTexture = Cubemap(pending)
             environment!!.set(CubemapAttribute(CubemapAttribute.EnvironmentMap, cloudsTexture))
             cloudsTexture!!.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
-            val pending: CubemapData? = nextCloudMap
             if (pending is CloudsProvider.CloudCubeMap) {
                 pending.dispose()
             }

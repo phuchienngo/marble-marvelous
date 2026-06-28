@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.phuchienngo.marblemarvelous"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.phuchienngo.marblemarvelous"
@@ -70,19 +70,18 @@ dependencies {
 
     // --- Protobuf javalite runtime (StormProtos regenerated from
     // app/src/main/proto/storm_locations.proto via protoc 25.5 --java_out=lite:) ---
-    implementation("com.google.protobuf:protobuf-javalite:3.25.5")
+    implementation("com.google.protobuf:protobuf-javalite:4.35.1")
 
     // --- Kotlin coroutines (background weather fetches) ---
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
     // --- Dagger 2 DI with @Inject constructor injection via KSP (AGP 8 + KGP). ---
     implementation("com.google.dagger:dagger:2.60")
     ksp("com.google.dagger:dagger-compiler:2.60")
 
     // --- OkHttp + official coroutines adapter (OpenWeather cloud-tile downloads) ---
-    // Pinned to 5.3.2: okhttp-android 5.4.0 requires compileSdk 36 (only 35 installed).
-    implementation("com.squareup.okhttp3:okhttp:5.3.2")
-    implementation("com.squareup.okhttp3:okhttp-coroutines:5.3.2")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
+    implementation("com.squareup.okhttp3:okhttp-coroutines:5.4.0")
 
     testImplementation("junit:junit:4.13.2")
 }
