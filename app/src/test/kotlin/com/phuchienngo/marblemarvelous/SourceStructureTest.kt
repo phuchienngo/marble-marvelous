@@ -86,6 +86,37 @@ class SourceStructureTest {
     }
 
     @Test
+    fun earthEngineDoesNotStartPermissionFlowFromWallpaperRender() {
+        val earthEngineSource: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/earth/EarthEngine.kt").readText()
+
+        assertTrue(earthEngineSource.contains("userLocation.lastKnown(requestPermissions = false)"))
+        assertFalse(earthEngineSource.contains("userLocation.lastKnown(requestPermissions = true)"))
+    }
+
+    @Test
+    fun liveWallpaperSettingsLaunchesForegroundPermissionFlow() {
+        val manifestSource: String = File("src/main/AndroidManifest.xml").readText()
+        val wallpaperMetadataSource: String = File("src/main/res/xml/live_wallpaper_earth.xml").readText()
+        val permissionsActivitySource: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/permissions/PermissionsActivity.kt").readText()
+        val permissionsActivityManifestEntry: String =
+            Regex("<activity\\s+[^>]*android:name=\"com.phuchienngo.marblemarvelous.permissions.PermissionsActivity\"[^>]*>")
+                .find(manifestSource)
+                ?.value
+                ?: ""
+
+        assertTrue(
+            wallpaperMetadataSource.contains(
+                "android:settingsActivity=\"com.phuchienngo.marblemarvelous.permissions.PermissionsActivity\""
+            )
+        )
+        assertTrue(permissionsActivityManifestEntry.contains("android:exported=\"true\""))
+        assertTrue(permissionsActivitySource.contains("LocationPermissions.LOCATION_PERMISSION"))
+        assertTrue(permissionsActivitySource.contains("LocationPermissions.LOCATION_KEY"))
+    }
+
+    @Test
     fun assetsUseMarbleSpecificShaderDirectory() {
         val assetsRoot: File = File("src/main/assets")
 

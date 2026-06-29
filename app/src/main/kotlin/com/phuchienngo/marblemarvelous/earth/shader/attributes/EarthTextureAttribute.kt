@@ -61,7 +61,8 @@ class EarthTextureAttribute private constructor(
     companion object {
         val DAY_DIFFUSE: Long = register("DayDiffuse")
         val NIGHT_DIFFUSE: Long = register("NightDiffuse")
-        private val MASK: Long = CubemapAttribute.EnvironmentMap or DAY_DIFFUSE or NIGHT_DIFFUSE
+        val CLOUD_DETAIL: Long = register("CloudDetail")
+        private val MASK: Long = CubemapAttribute.EnvironmentMap or DAY_DIFFUSE or NIGHT_DIFFUSE or CLOUD_DETAIL
         private const val HASH_MULTIPLIER: Int = 967
 
         fun isType(mask: Long): Boolean = (MASK and mask) != 0L
@@ -76,6 +77,13 @@ class EarthTextureAttribute private constructor(
         fun createNight(texture: Cubemap): EarthTextureAttribute =
             EarthTextureAttribute(
                 type = NIGHT_DIFFUSE,
+                texture = texture,
+                transform = Matrix4().idt()
+            )
+
+        fun createCloudDetail(texture: Cubemap): EarthTextureAttribute =
+            EarthTextureAttribute(
+                type = CLOUD_DETAIL,
                 texture = texture,
                 transform = Matrix4().idt()
             )

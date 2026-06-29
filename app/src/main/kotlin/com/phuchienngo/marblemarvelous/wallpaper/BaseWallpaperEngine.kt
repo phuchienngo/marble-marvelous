@@ -5,6 +5,7 @@ import com.badlogic.gdx.Application
 import com.badlogic.gdx.Gdx
 import com.phuchienngo.marblemarvelous.input.InputMultiplexer
 import com.phuchienngo.marblemarvelous.power.FPSThrottler
+import com.phuchienngo.marblemarvelous.power.ResumeRenderWarmup
 import com.phuchienngo.marblemarvelous.utils.BaseMathUtils
 import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.utils.Size
@@ -39,6 +40,12 @@ open class BaseWallpaperEngine(
     private var continuousRenderingTarget = true
     private var requestedRendering = false
     private var lastTimeNanos = 0L
+    private val resumeRenderWarmup: ResumeRenderWarmup =
+        ResumeRenderWarmup(
+            clock = resumeWarmupClock@{
+                return@resumeWarmupClock SystemClock.elapsedRealtimeNanos()
+            }
+        )
 
     @JvmField protected var pageSwipeController = PageSwipeController()
 
@@ -110,6 +117,7 @@ open class BaseWallpaperEngine(
     @Synchronized
     override fun resume() {
         fpsThrottler.resume()
+        resumeRenderWarmup.markResumed()
         isPaused = false
         resetDeltaTime()
         requestRendering(force = false)
@@ -209,6 +217,8 @@ open class BaseWallpaperEngine(
     protected open fun updateWallpaper(delta: Float) {}
 
     protected open fun renderWallpaper(): Int = 60
+
+    protected fun isResumeWarmupActive(): Boolean = resumeRenderWarmup.isActive()
 
     protected open fun scrollChange(scrollX: Float) {}
 

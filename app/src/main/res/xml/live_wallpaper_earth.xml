@@ -3,5 +3,6 @@
     android:description="@string/globe_wallpaper_description"
     android:thumbnail="@drawable/earth_preview"
     android:author="@string/google_earth_weather_collection"
+    android:settingsActivity="com.phuchienngo.marblemarvelous.permissions.PermissionsActivity"
     android:showMetadataInPreview="true"
 />

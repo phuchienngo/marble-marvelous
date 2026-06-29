@@ -4,13 +4,14 @@ import android.opengl.GLSurfaceView
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
-import android.view.Choreographer
+import android.os.SystemClock
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.backends.android.AndroidGraphics
 import com.phuchienngo.marblemarvelous.di.WallpaperEngineScope
 import com.phuchienngo.marblemarvelous.utils.Console
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
+import kotlin.math.roundToLong
 
 @WallpaperEngineScope
 class FPSThrottler
@@ -27,27 +28,32 @@ class FPSThrottler
 
         private var mRenderThread: FpsThrottlerThread? = null
 
+        @Synchronized
         fun resume() {
             Gdx.app.graphics.isContinuousRendering = false
+            val renderThread: FpsThrottlerThread? = mRenderThread
+            if (renderThread != null && renderThread.isAlive) {
+                updateFrameTime()
+                renderThread.requestTick()
+                return
+            }
             requestRender.set(RENDER_NOT_REQUESTED)
             isDrawing.set(NOT_DRAWING)
             updateFrameTime()
-            mRenderThread = FpsThrottlerThread()
-            mRenderThread!!.start()
+            val nextRenderThread: FpsThrottlerThread = FpsThrottlerThread()
+            mRenderThread = nextRenderThread
+            nextRenderThread.start()
         }
 
+        @Synchronized
         fun pause() {
             Gdx.app.graphics.isContinuousRendering = true
             val renderThread: FpsThrottlerThread? = mRenderThread
             if (renderThread != null) {
-                val handler: Handler? = renderThread.getHandler()
-                if (handler != null) {
-                    handler.sendEmptyMessage(0)
-                } else {
-                    renderThread.interrupt()
-                }
+                renderThread.quit()
                 mRenderThread = null
             }
+            requestRender.set(RENDER_NOT_REQUESTED)
             requestRendering()
         }
 
@@ -75,15 +81,7 @@ class FPSThrottler
         }
 
         private fun updateFrameTime() {
-            frameTimeMs =
-                1000.0 /
-                    (
-                        if (isContinuousRendering.get()) {
-                            fps
-                        } else {
-                            DEFAULT_FPS
-                        }
-                    ).toDouble()
+            frameTimeMs = 1000.0 / fps.toDouble()
         }
 
         fun setPowerSaveMode(isPowerSaveMode: Boolean) {
@@ -92,11 +90,15 @@ class FPSThrottler
 
         fun setContinuousRendering(continuousRendering: Boolean) {
             isContinuousRendering.set(continuousRendering)
+            if (continuousRendering) {
+                mRenderThread?.requestTick()
+            }
         }
 
         fun requestRendering(force: Boolean) {
             if (!isContinuousRendering.get()) {
                 requestRender.set(RENDER_REQUESTED)
+                mRenderThread?.requestTick()
             }
             if (force) {
                 requestRendering()
@@ -110,17 +112,29 @@ class FPSThrottler
         }
 
         private class FpsHandler(
-            looper: Looper
+            looper: Looper,
+            private val renderThread: FpsThrottlerThread
         ) : Handler(looper) {
             override fun handleMessage(msg: Message) {
-                Console.log(TAG, "got message, quitting")
-                Looper.myLooper()?.quit()
+                when (msg.what) {
+                    STOP_MESSAGE -> {
+                        removeMessages(REQUEST_RENDER_MESSAGE)
+                        Looper.myLooper()?.quit()
+                    }
+
+                    REQUEST_RENDER_MESSAGE -> {
+                        renderThread.handleFrameTick()
+                    }
+
+                    else -> {
+                        return
+                    }
+                }
             }
         }
 
         private inner class FpsThrottlerThread :
-            Thread(),
-            Choreographer.FrameCallback {
+            Thread() {
             private var lastFrameTimeNanos = -1L
 
             @Volatile
@@ -129,29 +143,54 @@ class FPSThrottler
             override fun run() {
                 name = "FpsThrottlerThread"
                 Looper.prepare()
-                mHandler = FpsHandler(Looper.myLooper()!!)
-                Choreographer.getInstance().postFrameCallback(this)
-                if (isInterrupted) {
-                    Looper.myLooper()?.quit()
-                } else {
+                val looper: Looper =
+                    requireNotNull(Looper.myLooper()) currentLooper@{
+                        return@currentLooper "FpsThrottlerThread must prepare a Looper before creating its handler."
+                    }
+                val handler: Handler = FpsHandler(looper, this)
+                mHandler = handler
+                if (!isInterrupted) {
+                    handler.sendEmptyMessage(REQUEST_RENDER_MESSAGE)
                     Looper.loop()
+                } else {
+                    looper.quit()
                 }
+                handler.removeMessages(REQUEST_RENDER_MESSAGE)
+                mHandler = null
                 Console.log(TAG, "looper quit")
-                Choreographer.getInstance().removeFrameCallback(this)
             }
 
-            fun getHandler(): Handler? = mHandler
+            fun requestTick() {
+                val handler: Handler = mHandler ?: return
+                handler.removeMessages(REQUEST_RENDER_MESSAGE)
+                handler.sendEmptyMessage(REQUEST_RENDER_MESSAGE)
+            }
 
-            override fun doFrame(frameTimeNanos: Long) {
+            fun quit() {
+                val handler: Handler? = mHandler
+                if (handler != null) {
+                    handler.removeMessages(REQUEST_RENDER_MESSAGE)
+                    handler.sendEmptyMessage(STOP_MESSAGE)
+                    return
+                }
+                interrupt()
+            }
+
+            fun handleFrameTick() {
+                if (isInterrupted) {
+                    Looper.myLooper()?.quit()
+                    return
+                }
+                val frameTimeNanos: Long = SystemClock.elapsedRealtimeNanos()
                 if (lastFrameTimeNanos == INITIAL_FRAME_TIME_NANOS) {
                     lastFrameTimeNanos = frameTimeNanos
                     requestRendering()
-                    Choreographer.getInstance().postFrameCallback(this)
+                    scheduleNextFrame()
                     return
                 }
 
                 if (isDrawing.get()) {
-                    Choreographer.getInstance().postFrameCallback(this)
+                    scheduleNextFrame()
                     return
                 }
 
@@ -163,24 +202,43 @@ class FPSThrottler
                     }
                     lastFrameTimeNanos = frameTimeNanos
                 }
-                Choreographer.getInstance().postFrameCallback(this)
+                scheduleNextFrame()
             }
 
             private fun shouldRenderFrame(): Boolean {
                 return isContinuousRendering.get() ||
                     (!isContinuousRendering.get() && requestRender.get())
             }
+
+            private fun scheduleNextFrame() {
+                val handler: Handler = mHandler ?: return
+                handler.removeMessages(REQUEST_RENDER_MESSAGE)
+                if (shouldScheduleNextFrame()) {
+                    handler.sendEmptyMessageDelayed(REQUEST_RENDER_MESSAGE, frameDelayMs())
+                }
+            }
+
+            private fun shouldScheduleNextFrame(): Boolean {
+                return isContinuousRendering.get() || requestRender.get()
+            }
         }
+
+        private fun frameDelayMs(): Long =
+            frameTimeMs
+                .roundToLong()
+                .coerceAtLeast(MIN_FRAME_DELAY_MS)
 
         companion object {
             private const val TAG: String = "FPSThrottler"
             private const val CONTINUOUS_RENDERING_ENABLED: Boolean = true
-            private const val DEFAULT_FPS: Int = 60
             private const val DRAWING: Boolean = true
             private const val INITIAL_FRAME_TIME_NANOS: Long = -1L
+            private const val MIN_FRAME_DELAY_MS: Long = 1L
             private const val NANOS_PER_MILLIS: Double = 1000000.0
             private const val NOT_DRAWING: Boolean = false
             private const val RENDER_NOT_REQUESTED: Boolean = false
             private const val RENDER_REQUESTED: Boolean = true
+            private const val REQUEST_RENDER_MESSAGE: Int = 1
+            private const val STOP_MESSAGE: Int = 0
         }
     }

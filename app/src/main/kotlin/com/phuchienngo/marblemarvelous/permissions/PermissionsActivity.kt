@@ -31,12 +31,8 @@ class PermissionsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        permissions = intent.getStringArrayExtra(UserPermissions.PERMISSIONS_REQUESTED) ?: emptyArray()
-        sharedPreferencesKey = intent.getStringExtra(UserPermissions.SHARED_PREF_KEY)
-        if (sharedPreferencesKey == null) {
-            finish()
-            return
-        }
+        permissions = intent.getStringArrayExtra(UserPermissions.PERMISSIONS_REQUESTED) ?: defaultPermissions()
+        sharedPreferencesKey = intent.getStringExtra(UserPermissions.SHARED_PREF_KEY) ?: LocationPermissions.LOCATION_KEY
         if (permissions.isEmpty()) {
             savePermissionResult(granted = true)
             finish()
@@ -53,6 +49,8 @@ class PermissionsActivity : ComponentActivity() {
             return@permissionContent
         }
     }
+
+    private fun defaultPermissions(): Array<String> = arrayOf(LocationPermissions.LOCATION_PERMISSION)
 
     private fun onPermissionResult(permissionResults: Map<String, Boolean>) {
         val granted: Boolean =

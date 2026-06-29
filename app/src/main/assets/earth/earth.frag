@@ -2,7 +2,8 @@ precision mediump float;
 
 uniform samplerCube dayMap;
 uniform samplerCube nightMap;
-uniform samplerCube cloudMap;
+uniform samplerCube cloudMaskMap;
+uniform samplerCube cloudDetailMap;
 uniform vec3 lightPosition;
 uniform vec4 terminatorColor1;
 uniform vec4 terminatorColor2;
@@ -18,7 +19,9 @@ varying vec3 vNormal;
 const float cloudIntensityDay = 0.62;
 const float cloudIntensityNight = 0.36;
 const float cloudShadowIntensity = 0.34;
-const float cloudBlurOffset = 0.0045;
+const float cloudBlurOffset = 0.0075;
+const float cloudMaskBoost = 1.85;
+const float cloudThinBoostMix = 0.65;
 
 const float lightShinePhase = 1.;
 const float lightsRandomness = 30.;
@@ -51,7 +54,7 @@ vec3 sampleDaySharp(vec3 normal) {
     return clamp(center + (center - blur) * daySharpenAmount, 0.0, 1.0);
 }
 
-float sampleCloud(vec3 normal) {
+float sampleCloudMask(vec3 normal) {
     vec3 n = normalize(normal);
     // Continuous tangent frame: derive the blur directions smoothly so there is
     // NO hard latitude switch (the old `if (abs(n.y) > .75)` flipped the basis at
@@ -60,15 +63,30 @@ float sampleCloud(vec3 normal) {
     vec3 tangent = normalize(cross(n, vec3(0., 1., 0.)) + vec3(1e-4, 0., 0.));
     vec3 bitangent = cross(n, tangent);
 
-    // 5-tap blur, center-weighted: just enough to anti-alias the low-res cloud
-    // cubemap / cube seams WITHOUT washing out detail (clouds were softer than the
-    // 2048² earth map; this keeps the edges crisper than an even blur would).
-    float cloud = textureCube( cloudMap, n ).r * .64;
-    cloud += textureCube( cloudMap, normalize(n + tangent * cloudBlurOffset) ).r * .09;
-    cloud += textureCube( cloudMap, normalize(n - tangent * cloudBlurOffset) ).r * .09;
-    cloud += textureCube( cloudMap, normalize(n + bitangent * cloudBlurOffset) ).r * .09;
-    cloud += textureCube( cloudMap, normalize(n - bitangent * cloudBlurOffset) ).r * .09;
+    // Keep shader blur subtle; the raw cloud mask does most of the edge shaping.
+    float cloud = textureCube( cloudMaskMap, n ).r * .48;
+    cloud += textureCube( cloudMaskMap, normalize(n + tangent * cloudBlurOffset) ).r * .13;
+    cloud += textureCube( cloudMaskMap, normalize(n - tangent * cloudBlurOffset) ).r * .13;
+    cloud += textureCube( cloudMaskMap, normalize(n + bitangent * cloudBlurOffset) ).r * .13;
+    cloud += textureCube( cloudMaskMap, normalize(n - bitangent * cloudBlurOffset) ).r * .13;
     return cloud;
+}
+
+float sampleCloudDetail(vec3 normal) {
+    vec3 n = normalize(normal);
+    vec3 tangent = normalize(cross(n, vec3(0., 1., 0.)) + vec3(1e-4, 0., 0.));
+    vec3 bitangent = cross(n, tangent);
+
+    float cloud = textureCube( cloudDetailMap, n ).r * .48;
+    cloud += textureCube( cloudDetailMap, normalize(n + tangent * cloudBlurOffset) ).r * .13;
+    cloud += textureCube( cloudDetailMap, normalize(n - tangent * cloudBlurOffset) ).r * .13;
+    cloud += textureCube( cloudDetailMap, normalize(n + bitangent * cloudBlurOffset) ).r * .13;
+    cloud += textureCube( cloudDetailMap, normalize(n - bitangent * cloudBlurOffset) ).r * .13;
+    return cloud;
+}
+
+float boostThinCloudMask(float mask) {
+    return mix(mask, sqrt(mask), cloudThinBoostMix);
 }
 
 void main()  {
@@ -85,11 +103,17 @@ void main()  {
     vec3 base = vec3(0.);
 
     // Add clouds
-    float cloudColor = sampleCloud(vCloudNormal);
-    float cloudShadow = sampleCloud(vCloudShadowNormal);
+    float weatherMask = sampleCloudMask(vCloudNormal);
+    float weatherShadowMask = sampleCloudMask(vCloudShadowNormal);
+    float boostedWeatherMask = boostThinCloudMask(weatherMask);
+    float boostedWeatherShadowMask = boostThinCloudMask(weatherShadowMask);
+    float cloudDetail = sampleCloudDetail(vCloudNormal);
+    float cloudShadowDetail = sampleCloudDetail(vCloudShadowNormal);
+    float cloudColor = clamp(boostedWeatherMask * mix(0.58, 1.0, cloudDetail) * cloudMaskBoost, 0., 1.);
+    float cloudShadow = clamp(boostedWeatherShadowMask * mix(0.58, 1.0, cloudShadowDetail) * cloudMaskBoost, 0., 1.);
     // Single soft coverage ramp instead of several stacked smoothsteps — stacking
     // discrete thresholds on the low-res cloud map quantized into contour stripes.
-    float cloudCoverage = smoothstep(0.05, 0.55, cloudColor);
+    float cloudCoverage = smoothstep(0.04, 0.64, cloudColor);
     float cloudShadowCoverage = smoothstep(0.06, 0.58, cloudShadow);
     // Soft relief from the shadow-offset parallax sample: where the cloud is
     // thicker than its offset neighbour it reads as a lit, raised top.

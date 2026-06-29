@@ -31,7 +31,7 @@ import kotlin.math.sqrt
 import kotlin.math.tan
 
 /**
- * Builds the 6 cube-map faces (px/nx/.../nz.jpg) consumed by
+ * Builds the 6 cube-map faces (px/nx/.../nz.r8) consumed by
  * [CloudsProvider.getLatest] from OpenWeatherMap cloud map tiles.
  *
  * Replaces the dead Google clouds-cubemap download. OpenWeather only serves 2D
@@ -73,10 +73,13 @@ class OpenWeatherClouds
                                     return@loadCloudTile downloadCloudTileValues(apiKey, x, y)
                                 }
                         )
-                    for (faceIndex in FACES.indices) {
-                        val face: Bitmap = renderFace(faceIndex, source) ?: return@generateFaces false
-                        val ok: Boolean = writePng(face, File(context.cacheDir, FACES[faceIndex] + FACE_EXTENSION))
-                        face.recycle()
+                    for (faceIndex: Int in FACES.indices) {
+                        val ok: Boolean =
+                            writeRawFace(
+                                faceIndex = faceIndex,
+                                source = source,
+                                dest = File(context.cacheDir, FACES[faceIndex] + RAW_FACE_VERSION + RAW_FACE_EXTENSION)
+                            )
                         if (!ok) {
                             return@generateFaces false
                         }
@@ -157,77 +160,129 @@ class OpenWeatherClouds
             return null
         }
 
-        private suspend fun renderFace(
+        private suspend fun writeRawFace(
             faceIndex: Int,
-            source: TiledCloudSource
-        ): Bitmap? {
-            val face: Bitmap = Bitmap.createBitmap(FACE, FACE, Bitmap.Config.ARGB_8888)
-            val row: IntArray = IntArray(FACE)
-            for (py in 0 until FACE) {
-                val t: Double = 2.0 * (py + 0.5) / FACE - 1.0
-                for (px in 0 until FACE) {
-                    val s: Double = 2.0 * (px + 0.5) / FACE - 1.0
-                    var dx: Double
-                    var dy: Double
-                    var dz: Double
-                    when (faceIndex) {
-                        0 -> {
-                            dx = 1.0
-                            dy = -t
-                            dz = -s
-                        }
-
-                        1 -> {
-                            dx = -1.0
-                            dy = -t
-                            dz = s
-                        }
-
-                        2 -> {
-                            dx = s
-                            dy = 1.0
-                            dz = t
-                        }
-
-                        3 -> {
-                            dx = s
-                            dy = -1.0
-                            dz = -t
-                        }
-
-                        4 -> {
-                            dx = s
-                            dy = -t
-                            dz = 1.0
-                        }
-
-                        else -> {
-                            dx = -s
-                            dy = -t
-                            dz = -1.0
-                        }
-                    }
-                    val len: Double = sqrt(dx * dx + dy * dy + dz * dz)
-                    dx /= len
-                    dy /= len
-                    dz /= len
-                    val latDeg: Double = Math.toDegrees(asin(max(-1.0, min(1.0, dy))))
-                    var lonDeg = Math.toDegrees(atan2(dx, dz)) + LON_OFFSET_DEG
-                    lonDeg = ((lonDeg + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
-                    val sampledCloud: Int? = sampleMercator(source, latDeg, lonDeg)
-                    if (sampledCloud == null) {
-                        face.recycle()
-                        return null
-                    }
-                    val cloud: Int = sampledCloud
-                    row[px] = toCloudArgb(cloud)
+            source: TiledCloudSource,
+            dest: File
+        ): Boolean {
+            var outputStream: FileOutputStream? = null
+            return try {
+                outputStream = FileOutputStream(dest)
+                val ok: Boolean = writeSmoothedRawFace(faceIndex, source, outputStream)
+                if (!ok) {
+                    dest.delete()
                 }
-                face.setPixels(row, 0, FACE, 0, py, FACE, 1)
+                ok
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed writing $dest", e)
+                dest.delete()
+                false
+            } finally {
+                try {
+                    outputStream?.close()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed closing $dest", e)
+                }
             }
-            val facePixels: IntArray = IntArray(FACE * FACE)
-            face.getPixels(facePixels, 0, FACE, 0, 0, FACE, FACE)
-            face.setPixels(smoothCloudFace(facePixels, FACE, FACE), 0, FACE, 0, 0, FACE, FACE)
-            return face
+        }
+
+        private suspend fun writeSmoothedRawFace(
+            faceIndex: Int,
+            source: TiledCloudSource,
+            outputStream: FileOutputStream
+        ): Boolean {
+            var previousRow: ByteArray? = null
+            var currentRow: ByteArray = sampleCloudRow(faceIndex, py = 0, source) ?: return false
+            var nextRow: ByteArray? =
+                if (FACE > 1) {
+                    sampleCloudRow(faceIndex, py = 1, source) ?: return false
+                } else {
+                    null
+                }
+            val smoothedRow: ByteArray = ByteArray(FACE)
+
+            for (py: Int in 0 until FACE) {
+                smoothCloudRows(
+                    previousRow = previousRow ?: currentRow,
+                    currentRow = currentRow,
+                    nextRow = nextRow ?: currentRow,
+                    outputRow = smoothedRow
+                )
+                outputStream.write(smoothedRow)
+
+                previousRow = currentRow
+                currentRow = nextRow ?: currentRow
+                val nextY: Int = py + 2
+                nextRow =
+                    if (nextY < FACE) {
+                        sampleCloudRow(faceIndex, nextY, source) ?: return false
+                    } else {
+                        null
+                    }
+            }
+            return true
+        }
+
+        private suspend fun sampleCloudRow(
+            faceIndex: Int,
+            py: Int,
+            source: TiledCloudSource
+        ): ByteArray? {
+            val row: ByteArray = ByteArray(FACE)
+            val t: Double = 2.0 * (py + 0.5) / FACE - 1.0
+            for (px: Int in 0 until FACE) {
+                val s: Double = 2.0 * (px + 0.5) / FACE - 1.0
+                var dx: Double
+                var dy: Double
+                var dz: Double
+                when (faceIndex) {
+                    0 -> {
+                        dx = 1.0
+                        dy = -t
+                        dz = -s
+                    }
+
+                    1 -> {
+                        dx = -1.0
+                        dy = -t
+                        dz = s
+                    }
+
+                    2 -> {
+                        dx = s
+                        dy = 1.0
+                        dz = t
+                    }
+
+                    3 -> {
+                        dx = s
+                        dy = -1.0
+                        dz = -t
+                    }
+
+                    4 -> {
+                        dx = s
+                        dy = -t
+                        dz = 1.0
+                    }
+
+                    else -> {
+                        dx = -s
+                        dy = -t
+                        dz = -1.0
+                    }
+                }
+                val len: Double = sqrt(dx * dx + dy * dy + dz * dz)
+                dx /= len
+                dy /= len
+                dz /= len
+                val latDeg: Double = Math.toDegrees(asin(max(-1.0, min(1.0, dy))))
+                var lonDeg = Math.toDegrees(atan2(dx, dz)) + LON_OFFSET_DEG
+                lonDeg = ((lonDeg + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
+                val sampledCloud: Int = sampleMercator(source, latDeg, lonDeg) ?: return null
+                row[px] = sampledCloud.toByte()
+            }
+            return row
         }
 
         private suspend fun sampleMercator(
@@ -242,20 +297,6 @@ class OpenWeatherClouds
             val sourceX: Double = xf * source.worldSize - 0.5
             val sourceY: Double = yf * source.worldSize - 0.5
             return source.sample(sourceX, sourceY)
-        }
-
-        private fun writePng(
-            bitmap: Bitmap,
-            dest: File
-        ): Boolean {
-            return try {
-                FileOutputStream(dest).use writeBitmap@{ fos: FileOutputStream ->
-                    return@writeBitmap bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, fos)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed writing $dest", e)
-                false
-            }
         }
 
         internal fun interface TileLoader {
@@ -382,24 +423,23 @@ class OpenWeatherClouds
             private const val TAG: String = "OWClouds"
 
             /**
-             * Mercator zoom for the source tiles. z=5 -> 32x32 = 1024 tiles = 8192px
-             * whole world, giving ~2048px per equatorial cube face = native [FACE] detail.
+             * Mercator zoom for the source tiles. z=3 -> 8x8 = 64 tiles = 2048px
+             * whole world, giving ~512px per equatorial cube face = native [FACE] detail.
              * Tile bytes are cached on disk and read through [TiledCloudSource], avoiding
-             * a full 8192² source buffer in Java heap.
+             * a full 2048² source buffer in Java heap.
              */
-            private const val SRC_ZOOM: Int = 5
+            private const val SRC_ZOOM: Int = 3
             private const val TILE: Int = 256
 
-            // Cube face size. 2048 matches the day/night earth maps (2048²/face) so the
-            // cloud cubemap renders without an extra GPU upscale, and at z=5 the source
-            // actually carries ~2048px/equatorial-face so this is near-native detail.
-            private const val FACE: Int = 2048
+            // Cube face size. 512 keeps the OpenWeather layer light; shader sampling softens
+            // the lower-resolution cloud map into a puffier layer.
+            private const val FACE: Int = 512
             private const val TILE_CACHE_SIZE: Int = 32
             private const val TILE_CACHE_DIRECTORY: String = "openweather_cloud_tiles"
             private const val MERC_LAT_LIMIT: Double = 85.05112878
             private const val LON_OFFSET_DEG: Double = 0.0
-            private const val PNG_QUALITY: Int = 100
-            private const val FACE_EXTENSION: String = ".png"
+            private const val RAW_FACE_VERSION: String = "-shape-v2"
+            private const val RAW_FACE_EXTENSION: String = ".r8"
             private const val TILE_ATTEMPTS: Int = 3
             private const val TILE_RETRY_DELAY_MS: Long = 1500L
 
@@ -408,6 +448,12 @@ class OpenWeatherClouds
             // the real-time clouds noticeably softer than the 2048² earth map.
             private const val SMOOTH_KERNEL_ROUNDING: Int = 10
             private const val SMOOTH_KERNEL_WEIGHT: Int = 20
+            private const val CLOUD_HAZE_CUTOFF: Int = 8
+            private const val CLOUD_FEATHER_BLUR_WEIGHT: Int = 3
+            private const val CLOUD_FEATHER_MAX_WEIGHT: Int = 2
+            private const val CLOUD_FEATHER_WEIGHT: Int = CLOUD_FEATHER_BLUR_WEIGHT + CLOUD_FEATHER_MAX_WEIGHT
+            private const val CLOUD_FEATHER_ROUNDING: Int = CLOUD_FEATHER_WEIGHT / 2
+            private const val CLOUD_EDGE_BOOST_DIVISOR: Int = 8
             private const val LOAD_FACTOR: Float = 0.75f
 
             private val FACES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
@@ -425,35 +471,23 @@ class OpenWeatherClouds
                 return directory.mkdirs() || directory.isDirectory
             }
 
-            internal fun smoothCloudFace(
-                pixels: IntArray,
-                width: Int,
-                height: Int
-            ): IntArray {
-                require(width > 0)
-                require(height > 0)
-                require(pixels.size == width * height)
+            internal fun smoothCloudRows(
+                previousRow: ByteArray,
+                currentRow: ByteArray,
+                nextRow: ByteArray,
+                outputRow: ByteArray
+            ) {
+                require(previousRow.size == currentRow.size)
+                require(nextRow.size == currentRow.size)
+                require(outputRow.size == currentRow.size)
 
-                val smoothed: IntArray = IntArray(pixels.size)
-                for (y in 0 until height) {
-                    for (x in 0 until width) {
-                        val cloud: Int =
-                            (
-                                getCloudFaceValue(pixels, width, height, x - 1, y - 1) +
-                                    getCloudFaceValue(pixels, width, height, x, y - 1) * 2 +
-                                    getCloudFaceValue(pixels, width, height, x + 1, y - 1) +
-                                    getCloudFaceValue(pixels, width, height, x - 1, y) * 2 +
-                                    getCloudFaceValue(pixels, width, height, x, y) * 8 +
-                                    getCloudFaceValue(pixels, width, height, x + 1, y) * 2 +
-                                    getCloudFaceValue(pixels, width, height, x - 1, y + 1) +
-                                    getCloudFaceValue(pixels, width, height, x, y + 1) * 2 +
-                                    getCloudFaceValue(pixels, width, height, x + 1, y + 1) +
-                                    SMOOTH_KERNEL_ROUNDING
-                            ) / SMOOTH_KERNEL_WEIGHT
-                        smoothed[y * width + x] = toCloudArgb(cloud)
-                    }
+                for (x: Int in outputRow.indices) {
+                    val blurredCloud: Int = getSmoothedCloudRowValue(previousRow, currentRow, nextRow, x)
+                    val maxCloud: Int = getMaxCloudRowValue(previousRow, currentRow, nextRow, x)
+                    val minCloud: Int = getMinCloudRowValue(previousRow, currentRow, nextRow, x)
+                    val cloud: Int = shapeCloudValue(blurredCloud, maxCloud, minCloud)
+                    outputRow[x] = cloud.toByte()
                 }
-                return smoothed
             }
 
             private fun wrapHorizontal(
@@ -472,23 +506,91 @@ class OpenWeatherClouds
                             0.587 * ((argb shr 8) and 0xFF) +
                             0.114 * (argb and 0xFF)
                     ).toInt()
-                return if (alpha == 0) {
-                    luma
-                } else {
-                    (alpha * luma) / 255
-                }
+                return (alpha * luma) / 255
             }
 
-            private fun getCloudFaceValue(
-                pixels: IntArray,
-                width: Int,
-                height: Int,
-                x: Int,
-                y: Int
+            private fun getCloudRowValue(
+                row: ByteArray,
+                x: Int
             ): Int {
-                val clampedX: Int = x.coerceIn(0, width - 1)
-                val clampedY: Int = y.coerceIn(0, height - 1)
-                return pixels[clampedY * width + clampedX] and 0xFF
+                val clampedX: Int = x.coerceIn(0, row.size - 1)
+                return row[clampedX].toInt() and 0xFF
+            }
+
+            private fun getSmoothedCloudRowValue(
+                previousRow: ByteArray,
+                currentRow: ByteArray,
+                nextRow: ByteArray,
+                x: Int
+            ): Int =
+                (
+                    getCloudRowValue(previousRow, x - 1) +
+                        getCloudRowValue(previousRow, x) * 2 +
+                        getCloudRowValue(previousRow, x + 1) +
+                        getCloudRowValue(currentRow, x - 1) * 2 +
+                        getCloudRowValue(currentRow, x) * 8 +
+                        getCloudRowValue(currentRow, x + 1) * 2 +
+                        getCloudRowValue(nextRow, x - 1) +
+                        getCloudRowValue(nextRow, x) * 2 +
+                        getCloudRowValue(nextRow, x + 1) +
+                        SMOOTH_KERNEL_ROUNDING
+                ) / SMOOTH_KERNEL_WEIGHT
+
+            private fun getMaxCloudRowValue(
+                previousRow: ByteArray,
+                currentRow: ByteArray,
+                nextRow: ByteArray,
+                x: Int
+            ): Int {
+                var maxCloud: Int = getCloudRowValue(currentRow, x)
+                maxCloud = max(maxCloud, getCloudRowValue(previousRow, x - 1))
+                maxCloud = max(maxCloud, getCloudRowValue(previousRow, x))
+                maxCloud = max(maxCloud, getCloudRowValue(previousRow, x + 1))
+                maxCloud = max(maxCloud, getCloudRowValue(currentRow, x - 1))
+                maxCloud = max(maxCloud, getCloudRowValue(currentRow, x + 1))
+                maxCloud = max(maxCloud, getCloudRowValue(nextRow, x - 1))
+                maxCloud = max(maxCloud, getCloudRowValue(nextRow, x))
+                maxCloud = max(maxCloud, getCloudRowValue(nextRow, x + 1))
+                return maxCloud
+            }
+
+            private fun getMinCloudRowValue(
+                previousRow: ByteArray,
+                currentRow: ByteArray,
+                nextRow: ByteArray,
+                x: Int
+            ): Int {
+                var minCloud: Int = getCloudRowValue(currentRow, x)
+                minCloud = min(minCloud, getCloudRowValue(previousRow, x - 1))
+                minCloud = min(minCloud, getCloudRowValue(previousRow, x))
+                minCloud = min(minCloud, getCloudRowValue(previousRow, x + 1))
+                minCloud = min(minCloud, getCloudRowValue(currentRow, x - 1))
+                minCloud = min(minCloud, getCloudRowValue(currentRow, x + 1))
+                minCloud = min(minCloud, getCloudRowValue(nextRow, x - 1))
+                minCloud = min(minCloud, getCloudRowValue(nextRow, x))
+                minCloud = min(minCloud, getCloudRowValue(nextRow, x + 1))
+                return minCloud
+            }
+
+            private fun shapeCloudValue(
+                blurredCloud: Int,
+                maxCloud: Int,
+                minCloud: Int
+            ): Int {
+                if (maxCloud <= CLOUD_HAZE_CUTOFF) {
+                    return 0
+                }
+
+                val featheredCloud: Int =
+                    (
+                        blurredCloud * CLOUD_FEATHER_BLUR_WEIGHT +
+                            maxCloud * CLOUD_FEATHER_MAX_WEIGHT +
+                            CLOUD_FEATHER_ROUNDING
+                    ) / CLOUD_FEATHER_WEIGHT
+                val edgeBoost: Int = (maxCloud - minCloud) / CLOUD_EDGE_BOOST_DIVISOR
+                val liftedCloud: Int = featheredCloud + edgeBoost
+                val clippedCloud: Int = (liftedCloud - CLOUD_HAZE_CUTOFF).coerceAtLeast(0)
+                return (clippedCloud * 255 / (255 - CLOUD_HAZE_CUTOFF)).coerceIn(0, 255)
             }
 
             private fun lerp(
@@ -497,6 +599,5 @@ class OpenWeatherClouds
                 amount: Double
             ): Double = start + (end - start) * amount
 
-            private fun toCloudArgb(cloud: Int): Int = -0x1000000 or (cloud shl 16) or (cloud shl 8) or cloud
         }
     }

@@ -27,6 +27,78 @@ class OpenWeatherCloudsTest {
     }
 
     @Test
+    fun cloudRefreshWritesRawFacesInsteadOfPngBitmaps() {
+        val source: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/OpenWeatherClouds.kt")
+                .readText()
+
+        assertTrue(source.contains("RAW_FACE_EXTENSION: String = \".r8\""))
+        assertTrue(source.contains("writeRawFace("))
+        assertTrue(source.contains("smoothCloudRows("))
+        assertFalse(source.contains("Bitmap.createBitmap(FACE, FACE"))
+        assertFalse(source.contains("writePng("))
+        assertFalse(source.contains("FACE_EXTENSION: String = \".png\""))
+    }
+
+    @Test
+    fun cloudRefreshUsesVersionedRawFacesForMaskShapeChanges() {
+        val openWeatherSource: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/OpenWeatherClouds.kt")
+                .readText()
+        val providerSource: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/CloudsProvider.kt")
+                .readText()
+
+        assertTrue(openWeatherSource.contains("RAW_FACE_VERSION: String = \"-shape-v2\""))
+        assertTrue(providerSource.contains("RAW_FACE_VERSION: String = \"-shape-v2\""))
+        assertTrue(openWeatherSource.contains("+ RAW_FACE_VERSION + RAW_FACE_EXTENSION"))
+        assertTrue(providerSource.contains("+ RAW_FACE_VERSION + RAW_FACE_EXTENSION"))
+    }
+
+    @Test
+    fun cloudProviderUploadsRawFacesWithoutPixmapDecode() {
+        val source: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/CloudsProvider.kt")
+                .readText()
+
+        assertTrue(source.contains("RAW_FACE_EXTENSION: String = \".r8\""))
+        assertTrue(source.contains("glTexSubImage2D"))
+        assertTrue(source.contains("expectedRawFaceBytes"))
+        assertFalse(source.contains("Pixmap("))
+        assertFalse(source.contains("PixmapTextureData"))
+        assertFalse(source.contains("FacedCubemapData"))
+    }
+
+    @Test
+    fun cloudProviderUploadsMappedSingleChannelRawFaces() {
+        val source: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/CloudsProvider.kt")
+                .readText()
+
+        assertTrue(source.contains("GL30.GL_R8"))
+        assertTrue(source.contains("GL30.GL_RED"))
+        assertTrue(source.contains("FileChannel.MapMode.READ_ONLY"))
+        assertTrue(source.contains("MappedByteBuffer"))
+        assertFalse(source.contains("FileInputStream"))
+        assertFalse(source.contains("GL20.GL_RGBA"))
+        assertFalse(source.contains("RGBA_BYTES_PER_PIXEL"))
+    }
+
+    @Test
+    fun cloudRefreshUsesVeryLowCostSourceAndFaceResolution() {
+        val openWeatherSource: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/OpenWeatherClouds.kt")
+                .readText()
+        val providerSource: String =
+            File("src/main/kotlin/com/phuchienngo/marblemarvelous/weather/CloudsProvider.kt")
+                .readText()
+
+        assertTrue(openWeatherSource.contains("SRC_ZOOM: Int = 3"))
+        assertTrue(openWeatherSource.contains("FACE: Int = 512"))
+        assertTrue(providerSource.contains("FACE_SIZE: Int = 512"))
+    }
+
+    @Test
     fun getCloudValueReturnsLumaForOpaquePixels() {
         assertEquals(OPAQUE_WHITE_CLOUD, OpenWeatherClouds.getCloudValue(WHITE))
         assertEquals(NO_CLOUD, OpenWeatherClouds.getCloudValue(BLACK))
@@ -39,25 +111,31 @@ class OpenWeatherCloudsTest {
     }
 
     @Test
-    fun smoothCloudFaceSoftensSingleBrightCloudPixel() {
-        val pixels: IntArray =
-            intArrayOf(
-                BLACK,
-                BLACK,
-                BLACK,
-                BLACK,
-                WHITE,
-                BLACK,
-                BLACK,
-                BLACK,
-                BLACK
-            )
+    fun getCloudValueTreatsTransparentOpenWeatherPixelsAsNoCloud() {
+        assertEquals(NO_CLOUD, OpenWeatherClouds.getCloudValue(TRANSPARENT_WHITE))
+    }
 
-        val actual: IntArray = OpenWeatherClouds.smoothCloudFace(pixels, width = 3, height = 3)
+    @Test
+    fun smoothCloudRowsFeathersEdgesWithoutFillingEmptySpace() {
+        val emptyRow: ByteArray = byteArrayOf(0, 0, 0, 0, 0)
+        val currentRow: ByteArray = byteArrayOf(0, 0, STRONG_CLOUD.toByte(), 0, 0)
+        val outputRow: ByteArray = ByteArray(currentRow.size)
 
-        assertEquals(CENTER_SOFTENED, actual[4])
-        assertEquals(NEIGHBOR_SOFTENED, actual[1])
-        assertEquals(CORNER_SOFTENED, actual[0])
+        OpenWeatherClouds.smoothCloudRows(
+            previousRow = emptyRow,
+            currentRow = currentRow,
+            nextRow = emptyRow,
+            outputRow = outputRow
+        )
+
+        val emptyLeft: Int = outputRow[0].toInt() and 0xFF
+        val featheredEdge: Int = outputRow[1].toInt() and 0xFF
+        val softCore: Int = outputRow[2].toInt() and 0xFF
+
+        assertEquals(NO_CLOUD, emptyLeft)
+        assertTrue(featheredEdge > SOFT_EDGE_MINIMUM)
+        assertTrue(softCore > SOFT_CORE_MINIMUM)
+        assertTrue(softCore > featheredEdge)
     }
 
     @Test
@@ -168,6 +246,7 @@ class OpenWeatherCloudsTest {
         private const val BLACK: Int = -0x1000000
         private const val WHITE: Int = -0x1
         private const val SEMI_TRANSPARENT_DARK: Int = 0x80404040.toInt()
+        private const val TRANSPARENT_WHITE: Int = 0x00FFFFFF
 
         // Cloud values (0..255), not ARGB.
         private const val OPAQUE_WHITE_CLOUD: Int = 255
@@ -176,11 +255,9 @@ class OpenWeatherCloudsTest {
         private const val BOUNDARY_CLOUD: Int = 75
         private const val WRAPPED_CLOUD: Int = 15
         private const val LOADED_CLOUD: Int = 42
+        private const val STRONG_CLOUD: Int = 180
+        private const val SOFT_EDGE_MINIMUM: Int = 70
+        private const val SOFT_CORE_MINIMUM: Int = 100
 
-        // Center-heavy 2-8-2 kernel (weight 20): white center on black neighbours ->
-        // center=(255*8+10)/20=102 (0x66), edge=(255*2+10)/20=26 (0x1a), corner=13 (0x0d).
-        private const val CENTER_SOFTENED: Int = -0x99999a
-        private const val NEIGHBOR_SOFTENED: Int = -0xe5e5e6
-        private const val CORNER_SOFTENED: Int = -0xf2f2f3
     }
 }

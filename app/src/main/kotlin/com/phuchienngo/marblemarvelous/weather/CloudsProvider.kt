@@ -3,13 +3,10 @@ package com.phuchienngo.marblemarvelous.weather
 import android.content.Context
 import android.util.Log
 import com.badlogic.gdx.Gdx
-import com.badlogic.gdx.files.FileHandle
 import com.badlogic.gdx.graphics.CubemapData
-import com.badlogic.gdx.graphics.Pixmap
-import com.badlogic.gdx.graphics.TextureData
-import com.badlogic.gdx.graphics.glutils.FacedCubemapData
+import com.badlogic.gdx.graphics.GL20
+import com.badlogic.gdx.graphics.GL30
 import com.badlogic.gdx.graphics.glutils.KTXTextureData
-import com.badlogic.gdx.graphics.glutils.PixmapTextureData
 import com.badlogic.gdx.utils.GdxRuntimeException
 import com.phuchienngo.marblemarvelous.di.MainDispatcher
 import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
@@ -22,6 +19,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
 import java.util.Date
 import javax.inject.Inject
 
@@ -43,46 +43,86 @@ class CloudsProvider(
     inner class CloudCubeMap
         @Throws(IOException::class)
         constructor(
-            positiveX: FileHandle,
-            negativeX: FileHandle,
-            positiveY: FileHandle,
-            negativeY: FileHandle,
-            positiveZ: FileHandle,
-            negativeZ: FileHandle
-        ) : FacedCubemapData(
-                null as TextureData?,
-                null,
-                null,
-                null,
-                null,
-                null
-            ) {
-            private val pixMaps: Array<Pixmap>
+            private val rawFaces: Array<File>
+        ) : CubemapData {
+            private var prepared: Boolean = false
 
             init {
+                validateRawFaces(rawFaces)
+            }
+
+            override fun isPrepared(): Boolean = prepared
+
+            override fun prepare() {
                 try {
-                    pixMaps =
-                        arrayOf(
-                            Pixmap(positiveX),
-                            Pixmap(negativeX),
-                            Pixmap(positiveY),
-                            Pixmap(negativeY),
-                            Pixmap(positiveZ),
-                            Pixmap(negativeZ)
-                        )
-                    val useMipMaps: Boolean = false
-                    val disposePixmap: Boolean = false
-                    for (i in pixMaps.indices) {
-                        data[i] = PixmapTextureData(pixMaps[i], null, useMipMaps, disposePixmap)
-                    }
-                } catch (e: GdxRuntimeException) {
-                    throw IOException("Error when loading cubemap data")
+                    validateRawFaces(rawFaces)
+                    prepared = true
+                } catch (e: IOException) {
+                    throw GdxRuntimeException("Error when preparing cloud cubemap data", e)
                 }
             }
 
+            override fun consumeCubemapData() {
+                if (!prepared) {
+                    throw GdxRuntimeException("Call prepare() before consumeCubemapData().")
+                }
+
+                try {
+                    Gdx.gl.glPixelStorei(GL20.GL_UNPACK_ALIGNMENT, 1)
+                    for (faceIndex: Int in rawFaces.indices) {
+                        uploadFace(faceIndex, rawFaces[faceIndex])
+                    }
+                } catch (e: IOException) {
+                    throw GdxRuntimeException("Error when loading cubemap data", e)
+                } finally {
+                    prepared = false
+                }
+            }
+
+            override fun getWidth(): Int = FACE_SIZE
+
+            override fun getHeight(): Int = FACE_SIZE
+
+            override fun isManaged(): Boolean = false
+
             fun dispose() {
-                for (pixMap in pixMaps) {
-                    pixMap.dispose()
+            }
+
+            private fun uploadFace(
+                faceIndex: Int,
+                file: File
+            ) {
+                val target: Int = GL20.GL_TEXTURE_CUBE_MAP_POSITIVE_X + faceIndex
+                Gdx.gl.glTexImage2D(
+                    target,
+                    0,
+                    GL30.GL_R8,
+                    FACE_SIZE,
+                    FACE_SIZE,
+                    0,
+                    GL30.GL_RED,
+                    GL20.GL_UNSIGNED_BYTE,
+                    null
+                )
+
+                RandomAccessFile(file, READ_ONLY_MODE).use uploadRawFace@{ randomAccessFile: RandomAccessFile ->
+                    randomAccessFile.channel.use uploadMappedFace@{ channel: FileChannel ->
+                        val mappedFace: MappedByteBuffer =
+                            channel.map(FileChannel.MapMode.READ_ONLY, 0, expectedRawFaceBytes())
+                        Gdx.gl.glTexSubImage2D(
+                            target,
+                            0,
+                            0,
+                            0,
+                            FACE_SIZE,
+                            FACE_SIZE,
+                            GL30.GL_RED,
+                            GL20.GL_UNSIGNED_BYTE,
+                            mappedFace
+                        )
+                        return@uploadMappedFace
+                    }
+                    return@uploadRawFace
                 }
             }
         }
@@ -99,21 +139,17 @@ class CloudsProvider(
     }
 
     fun getLatest(): CubemapData? {
-        for (face in FACE_NAMES) {
-            val file: File = File(context.cacheDir, "$face.png")
-            if (!file.exists() || !file.canRead()) {
+        val rawFaces: Array<File> =
+            Array(FACE_NAMES.size) { faceIndex: Int ->
+                return@Array File(context.cacheDir, FACE_NAMES[faceIndex] + RAW_FACE_VERSION + RAW_FACE_EXTENSION)
+            }
+        for (file: File in rawFaces) {
+            if (!isReadableRawFace(file)) {
                 return getBundledClouds()
             }
         }
         return try {
-            CloudCubeMap(
-                Gdx.files.absolute(context.cacheDir.toString() + "/px.png"),
-                Gdx.files.absolute(context.cacheDir.toString() + "/nx.png"),
-                Gdx.files.absolute(context.cacheDir.toString() + "/py.png"),
-                Gdx.files.absolute(context.cacheDir.toString() + "/ny.png"),
-                Gdx.files.absolute(context.cacheDir.toString() + "/pz.png"),
-                Gdx.files.absolute(context.cacheDir.toString() + "/nz.png")
-            )
+            CloudCubeMap(rawFaces)
         } catch (e: IOException) {
             Log.w(TAG, e)
             getBundledClouds()
@@ -164,6 +200,26 @@ class CloudsProvider(
 
     companion object {
         private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
+        private const val FACE_SIZE: Int = 512
+        private const val RAW_FACE_VERSION: String = "-shape-v2"
+        private const val RAW_FACE_EXTENSION: String = ".r8"
+        private const val READ_ONLY_MODE: String = "r"
         private const val TAG: String = "CM"
+
+        private fun isReadableRawFace(file: File): Boolean = file.exists() && file.canRead() && file.length() == expectedRawFaceBytes()
+
+        private fun expectedRawFaceBytes(): Long = FACE_SIZE.toLong() * FACE_SIZE
+
+        @Throws(IOException::class)
+        private fun validateRawFaces(rawFaces: Array<File>) {
+            if (rawFaces.size != FACE_NAMES.size) {
+                throw IOException("Expected ${FACE_NAMES.size} cloud faces, got ${rawFaces.size}.")
+            }
+            for (file: File in rawFaces) {
+                if (!isReadableRawFace(file)) {
+                    throw IOException("Invalid raw cloud face ${file.name}, expected ${expectedRawFaceBytes()} bytes.")
+                }
+            }
+        }
     }
 }

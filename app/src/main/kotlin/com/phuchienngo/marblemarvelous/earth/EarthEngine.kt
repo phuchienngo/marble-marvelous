@@ -61,6 +61,7 @@ class EarthEngine(
     private var batch: SpriteBatch? = null
     private var batchComposed: SpriteBatch? = null
     private var cam: PerspectiveCamera? = null
+    private var cloudDetailTexture: Cubemap? = null
     private var cloudsProvider: CloudsProvider? = null
     private var cloudsTexture: Cubemap? = null
     private var diffuse: Cubemap? = null
@@ -96,6 +97,7 @@ class EarthEngine(
     private val finalSunlightPosition: Vector3 = Vector3()
     private val finalModelTransform: Matrix4 = Matrix4()
     private var needsCloudsUpdate: Boolean = true
+    private var pendingResumeCloudRefresh: Boolean = false
     private var prevCameraPositionIndex: Int = -1
     private val tweenAod: TweenController = TweenController()
     private val tweenRotation: TweenController = TweenController()
@@ -115,6 +117,7 @@ class EarthEngine(
         assetManager!!.setLoader(Cubemap::class.java, CubemapLoader(InternalFileHandleResolver()))
         assetManager!!.load("earth/earth.g3db", Model::class.java)
         assetManager!!.load("earth/nightMap.ktx", Cubemap::class.java)
+        assetManager!!.load("earth/clouds.ktx", Cubemap::class.java)
         modelBatch = ModelBatch(EarthShaderProvider())
         sunLight = PointLight()
         sunLightPosition = EarthLocationMath.sunLightPosition(0.0f).scl(INITIAL_LIGHT_DISTANCE)
@@ -171,7 +174,7 @@ class EarthEngine(
         super.resume()
         if (isLoaded()) {
             setEarthAndCameraPosition()
-            cloudsProvider!!.updateClouds()
+            pendingResumeCloudRefresh = true
         }
     }
 
@@ -188,7 +191,8 @@ class EarthEngine(
         tweenRotation.update(delta)
         tweenAod.update(delta)
         tweenZoom.update(delta)
-        if (nextCloudMap != null && needsCloudsUpdate) {
+        maybeUpdateCloudsAfterResumeWarmup()
+        if (nextCloudMap != null && needsCloudsUpdate && (cloudsTexture == null || !isResumeWarmupActive())) {
             val pending: CubemapData? = nextCloudMap
             cloudsTexture?.dispose()
             cloudsTexture = Cubemap(pending)
@@ -208,6 +212,14 @@ class EarthEngine(
         glowColor.lerp(glowColorAOD, tweenAod.getValue())
         animate(delta)
         holdWakelockAOD(tweenAod.isAnimating())
+    }
+
+    private fun maybeUpdateCloudsAfterResumeWarmup() {
+        if (!pendingResumeCloudRefresh || isResumeWarmupActive()) {
+            return
+        }
+        pendingResumeCloudRefresh = false
+        cloudsProvider?.updateClouds()
     }
 
     @Synchronized
@@ -244,7 +256,8 @@ class EarthEngine(
         modelBatch!!.render(mEarth, environment)
         modelBatch!!.end()
         val requiresHighFPS: Boolean =
-            tweenRotation.isAnimating() ||
+            isResumeWarmupActive() ||
+                tweenRotation.isAnimating() ||
                 tweenZoom.isAnimating() ||
                 tweenAod.isAnimating()
         val requiresMediumFPS: Boolean = pageSwipeController.isScrollAnimating()
@@ -302,6 +315,7 @@ class EarthEngine(
         tintGlow?.dispose()
         tintGlow = null
         nightDiffuse = null
+        cloudDetailTexture = null
         model = null
         mEarth = null
     }
@@ -363,6 +377,8 @@ class EarthEngine(
             }
         nightDiffuse = assetManager!!.get("earth/nightMap.ktx", Cubemap::class.java)
         nightDiffuse!!.setFilter(Texture.TextureFilter.MipMapLinearLinear, Texture.TextureFilter.MipMapLinearLinear)
+        cloudDetailTexture = assetManager!!.get("earth/clouds.ktx", Cubemap::class.java)
+        cloudDetailTexture!!.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
         model = assetManager!!.get("earth/earth.g3db", Model::class.java)
         mEarth = ModelInstance(model)
         mEarth!!.userData = "earth"
@@ -370,7 +386,12 @@ class EarthEngine(
             requireNotNull(nightDiffuse) nightDiffuseLoaded@{
                 return@nightDiffuseLoaded "Night diffuse map must be loaded before material setup."
             }
+        val loadedCloudDetail: Cubemap =
+            requireNotNull(cloudDetailTexture) cloudDetailLoaded@{
+                return@cloudDetailLoaded "Cloud detail map must be loaded before material setup."
+            }
         mEarth!!.materials.first().set(EarthTextureAttribute.createNight(loadedNightDiffuse))
+        mEarth!!.materials.first().set(EarthTextureAttribute.createCloudDetail(loadedCloudDetail))
         if (nextCloudMap == null) {
             nextCloudMap = currentCloudsProvider.getLatest()
         }
@@ -433,7 +454,7 @@ class EarthEngine(
         val box: BoundingBox = BoundingBox()
         mEarth!!.calculateBoundingBox(box)
         val earthRadius: Float = box.depth / ACTIVATE_ROTATION
-        val location: Vector2 = userLocation.lastKnown(requestPermissions = true)
+        val location: Vector2 = userLocation.lastKnown(requestPermissions = false)
         val surface: Vector3 = EarthLocationMath.locationSurface(location.x, location.y, earthRadius, earthTransform)
         val cameraPositionIndex: Int = getCameraPositionIndex(date)
         camPosition = cameraPositions[cameraPositionIndex].cpy()

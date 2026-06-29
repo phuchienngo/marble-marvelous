@@ -64,7 +64,9 @@ class EarthShaderProvider : DefaultShaderProvider() {
             val sunLight: PointLight = pointLights.lights.first()
             val day: EarthTextureAttribute = renderable.material.get(EarthTextureAttribute.DAY_DIFFUSE) as EarthTextureAttribute
             val night: EarthTextureAttribute = renderable.material.get(EarthTextureAttribute.NIGHT_DIFFUSE) as EarthTextureAttribute
-            val clouds: CubemapAttribute = renderable.environment.get(CubemapAttribute.EnvironmentMap) as CubemapAttribute
+            val cloudMask: CubemapAttribute = renderable.environment.get(CubemapAttribute.EnvironmentMap) as CubemapAttribute
+            val cloudDetail: EarthTextureAttribute =
+                renderable.material.get(EarthTextureAttribute.CLOUD_DETAIL) as EarthTextureAttribute
             Gdx.gl.glEnable(GL20.GL_BLEND)
             Gdx.gl.glEnable(GL20.GL_CULL_FACE)
             Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA)
@@ -87,8 +89,10 @@ class EarthShaderProvider : DefaultShaderProvider() {
             shader!!.setUniformi("dayMap", 4)
             (night.textureDescription.texture as Cubemap).bind(3)
             shader!!.setUniformi("nightMap", 3)
-            (clouds.textureDescription.texture as Cubemap).bind(1)
-            shader!!.setUniformi("cloudMap", 1)
+            (cloudMask.textureDescription.texture as Cubemap).bind(1)
+            shader!!.setUniformi("cloudMaskMap", 1)
+            (cloudDetail.textureDescription.texture as Cubemap).bind(2)
+            shader!!.setUniformi("cloudDetailMap", 2)
             shader!!.setUniformf("terminatorColor1", rimColor1)
             shader!!.setUniformf("terminatorColor2", rimColor2)
             shader!!.setUniformf("atmosphereColor1", atmosphereColor1)
