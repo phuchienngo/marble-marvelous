@@ -49,7 +49,7 @@ adb shell am start -a android.service.wallpaper.CHANGE_LIVE_WALLPAPER \
 |---|---|
 | Gradle / AGP | **8.14.3** / **8.13.2** |
 | Kotlin / KSP | **2.2.21** / **2.2.21-2.0.5** |
-| compileSdk / targetSdk / minSdk | **36** / **35** / **24** |
+| compileSdk / targetSdk / minSdk | **36** / **36** / **36** |
 | JVM target | **17** |
 | libGDX | **1.14.2** |
 | Dagger 2 | **2.60** |

@@ -22,14 +22,17 @@ const float cloudShadowIntensity = 0.34;
 const float cloudBlurOffset = 0.0075;
 const float cloudMaskBoost = 1.85;
 const float cloudThinBoostMix = 0.65;
+const float cloudPuffReliefStrength = 0.34;
+const float cloudPuffOpacityStrength = 0.08;
+const float cloudWhiteLift = 0.68;
 
 const float lightShinePhase = 1.;
 const float lightsRandomness = 30.;
 
-const vec3 dayCloudShadowColor = vec3(.60, .65, .70);
-const vec3 dayCloudBaseColor = vec3(.85, .88, .90);
-const vec3 dayCloudHighlightColor = vec3(.98, .99, .98);
-const vec3 nightCloudColor = vec3(.20, .23, .28);
+const vec3 dayCloudShadowColor = vec3(.96, .97, .99);
+const vec3 dayCloudBaseColor = vec3(1.00, 1.00, 1.00);
+const vec3 dayCloudHighlightColor = vec3(1.00, 1.00, 1.00);
+const vec3 nightCloudColor = vec3(.36, .40, .48);
 
 // Unsharp mask on the day surface: the day map is a fixed 2048² texture, so the
 // only way to add apparent crispness is to boost local contrast (coastlines /
@@ -115,15 +118,18 @@ void main()  {
     // discrete thresholds on the low-res cloud map quantized into contour stripes.
     float cloudCoverage = smoothstep(0.04, 0.64, cloudColor);
     float cloudShadowCoverage = smoothstep(0.06, 0.58, cloudShadow);
+    float cloudPuffCore = smoothstep(0.40, 0.88, cloudCoverage);
+    float cloudPuffDetail = (cloudDetail - .50) * cloudPuffCore;
     // Soft relief from the shadow-offset parallax sample: where the cloud is
     // thicker than its offset neighbour it reads as a lit, raised top.
-    float cloudRelief = clamp((cloudColor - cloudShadow) * 2.0 + .50, 0., 1.);
+    float cloudRelief = clamp((cloudColor - cloudShadow) * 2.0 + .50 + cloudPuffDetail * cloudPuffReliefStrength, 0., 1.);
     float cloudSun = smoothstep(-.20, .80, lightDirection);
-    float dayCloudOpacity = cloudIntensityDay * cloudCoverage * (.55 + cloudRelief * .35);
+    float dayCloudOpacity = cloudIntensityDay * cloudCoverage * (.55 + cloudRelief * .35 + cloudPuffCore * cloudDetail * cloudPuffOpacityStrength);
     float nightCloudOpacity = cloudIntensityNight * cloudCoverage * (.70 + cloudRelief * .25);
     vec3 dayCloudColor = mix(dayCloudBaseColor, dayCloudHighlightColor, cloudRelief);
-    dayCloudColor = mix(dayCloudColor, dayCloudShadowColor, (1. - cloudRelief) * .32);
-    dayCloudColor *= .90 + cloudSun * .12;
+    dayCloudColor = mix(dayCloudColor, dayCloudShadowColor, (1. - cloudRelief) * .08);
+    dayCloudColor = mix(dayCloudColor, vec3(1.0), cloudWhiteLift);
+    dayCloudColor = clamp(dayCloudColor * (1.04 + cloudSun * .04), 0., 1.);
     vec3 nightCloudLitColor = mix(nightCloudColor * .78, nightCloudColor, cloudRelief);
     vec3 dayDiff = vec3(1.);
 

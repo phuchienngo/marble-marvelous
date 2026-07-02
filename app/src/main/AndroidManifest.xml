@@ -37,7 +37,6 @@
             android:theme="@style/Theme.Transparent"
             android:label="@string/permissions_activity"
             android:name="com.phuchienngo.marblemarvelous.permissions.PermissionsActivity"
-            android:exported="true"
-            android:screenOrientation="portrait"/>
+            android:exported="true"/>
     </application>
 </manifest>

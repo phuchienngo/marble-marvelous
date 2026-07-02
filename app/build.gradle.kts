@@ -11,10 +11,10 @@ android {
 
     defaultConfig {
         applicationId = "com.phuchienngo.marblemarvelous"
-        minSdk = 24
-        targetSdk = 35
+        minSdk = 36
+        targetSdk = 36
         versionCode = 28
-        versionName = "9 PP-8.0+ arm64"
+        versionName = "0.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -54,7 +54,7 @@ kotlin {
 
 dependencies {
     // --- Jetpack Compose (small Android UI surfaces such as runtime-permission screens) ---
-    implementation(platform("androidx.compose:compose-bom:2026.06.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")

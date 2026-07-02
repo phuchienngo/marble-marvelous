@@ -1,5 +1,5 @@
 package com.phuchienngo.marblemarvelous.wallpaper.listener
 
 interface ChargingListener {
-    fun onChargingStateChanged(isCharging: Boolean)
+  fun onChargingStateChanged(isCharging: Boolean)
 }

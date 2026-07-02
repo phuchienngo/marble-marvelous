@@ -13,13 +13,13 @@ import dagger.Component
 @WallpaperEngineScope
 @Component(modules = [EngineModule::class])
 interface EngineComponent {
-    fun earthEngineFactory(): EarthEngine.Factory
+  fun earthEngineFactory(): EarthEngine.Factory
 
-    @Component.Factory
-    interface Factory {
-        fun create(
-            @BindsInstance context: Context,
-            @BindsInstance app: Application
-        ): EngineComponent
-    }
+  @Component.Factory
+  interface Factory {
+    fun create(
+      @BindsInstance context: Context,
+      @BindsInstance app: Application
+    ): EngineComponent
+  }
 }

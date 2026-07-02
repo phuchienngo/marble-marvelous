@@ -21,25 +21,25 @@ import dagger.Component
 @WallpaperServiceScope
 @Component
 interface WallpaperComponent {
-    fun userPresenceController(): UserPresenceController
+  fun userPresenceController(): UserPresenceController
 
-    fun powerSaveController(): PowerSaveController
+  fun powerSaveController(): PowerSaveController
 
-    fun screenRotationController(): ScreenRotationController
+  fun screenRotationController(): ScreenRotationController
 
-    fun chargingController(): ChargingController
+  fun chargingController(): ChargingController
 
-    fun touchController(): TouchController
+  fun touchController(): TouchController
 
-    @Component.Factory
-    interface Factory {
-        fun create(
-            @BindsInstance context: Context,
-            @BindsInstance userPresenceListener: UserPresenceListener,
-            @BindsInstance powerSaveListener: PowerSaveListener,
-            @BindsInstance screenOrientationListener: ScreenOrientationListener,
-            @BindsInstance chargingListener: ChargingListener,
-            @BindsInstance touchListener: TouchListener
-        ): WallpaperComponent
-    }
+  @Component.Factory
+  interface Factory {
+    fun create(
+      @BindsInstance context: Context,
+      @BindsInstance userPresenceListener: UserPresenceListener,
+      @BindsInstance powerSaveListener: PowerSaveListener,
+      @BindsInstance screenOrientationListener: ScreenOrientationListener,
+      @BindsInstance chargingListener: ChargingListener,
+      @BindsInstance touchListener: TouchListener
+    ): WallpaperComponent
+  }
 }

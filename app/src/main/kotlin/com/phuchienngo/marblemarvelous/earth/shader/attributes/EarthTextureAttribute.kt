@@ -8,84 +8,85 @@ import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.utils.GdxRuntimeException
 
 class EarthTextureAttribute private constructor(
-    type: Long
+  type: Long
 ) : Attribute(type) {
-    val extraTransform: Matrix4 = Matrix4().idt()
-    val textureDescription: TextureDescriptor<Cubemap> = TextureDescriptor()
+  val extraTransform: Matrix4 = Matrix4().idt()
+  val textureDescription: TextureDescriptor<Cubemap> = TextureDescriptor()
 
-    init {
-        if (!isType(type)) {
-            throw GdxRuntimeException("Invalid type specified")
-        }
+  init {
+    if (!isType(type)) {
+      throw GdxRuntimeException("Invalid type specified")
     }
+  }
 
-    private constructor(
-        type: Long,
-        textureDescription: TextureDescriptor<Cubemap>,
-        transform: Matrix4
-    ) : this(type) {
-        extraTransform.set(transform)
-        this.textureDescription.set(textureDescription)
+  private constructor(
+    type: Long,
+    textureDescription: TextureDescriptor<Cubemap>,
+    transform: Matrix4
+  ) : this(type) {
+    extraTransform.set(transform)
+    this.textureDescription.set(textureDescription)
+  }
+
+  private constructor(
+    type: Long,
+    texture: Cubemap,
+    transform: Matrix4
+  ) : this(type) {
+    extraTransform.set(transform)
+    textureDescription.texture = texture
+  }
+
+  private constructor(copyFrom: EarthTextureAttribute) : this(
+    type = copyFrom.type,
+    textureDescription = copyFrom.textureDescription,
+    transform = copyFrom.extraTransform
+  )
+
+  override fun copy(): Attribute = EarthTextureAttribute(this)
+
+  override fun hashCode(): Int {
+    val result: Int = super.hashCode()
+    return (HASH_MULTIPLIER * result) + textureDescription.hashCode()
+  }
+
+  override fun compareTo(other: Attribute): Int {
+    if (type != other.type) {
+      return (type - other.type).toInt()
     }
+    val otherTextureAttribute: EarthTextureAttribute = other as EarthTextureAttribute
+    return textureDescription.compareTo(otherTextureAttribute.textureDescription)
+  }
 
-    private constructor(
-        type: Long,
-        texture: Cubemap,
-        transform: Matrix4
-    ) : this(type) {
-        extraTransform.set(transform)
-        textureDescription.texture = texture
-    }
+  companion object {
+    val DAY_DIFFUSE: Long = register("DayDiffuse")
+    val NIGHT_DIFFUSE: Long = register("NightDiffuse")
+    val CLOUD_DETAIL: Long = register("CloudDetail")
+    private val MASK: Long =
+      CubemapAttribute.EnvironmentMap or DAY_DIFFUSE or NIGHT_DIFFUSE or CLOUD_DETAIL
+    private const val HASH_MULTIPLIER: Int = 967
 
-    private constructor(copyFrom: EarthTextureAttribute) : this(
-        type = copyFrom.type,
-        textureDescription = copyFrom.textureDescription,
-        transform = copyFrom.extraTransform
-    )
+    fun isType(mask: Long): Boolean = (MASK and mask) != 0L
 
-    override fun copy(): Attribute = EarthTextureAttribute(this)
+    fun createDay(texture: Cubemap): EarthTextureAttribute =
+      EarthTextureAttribute(
+        type = DAY_DIFFUSE,
+        texture = texture,
+        transform = Matrix4().idt()
+      )
 
-    override fun hashCode(): Int {
-        val result: Int = super.hashCode()
-        return (HASH_MULTIPLIER * result) + textureDescription.hashCode()
-    }
+    fun createNight(texture: Cubemap): EarthTextureAttribute =
+      EarthTextureAttribute(
+        type = NIGHT_DIFFUSE,
+        texture = texture,
+        transform = Matrix4().idt()
+      )
 
-    override fun compareTo(other: Attribute): Int {
-        if (type != other.type) {
-            return (type - other.type).toInt()
-        }
-        val otherTextureAttribute: EarthTextureAttribute = other as EarthTextureAttribute
-        return textureDescription.compareTo(otherTextureAttribute.textureDescription)
-    }
-
-    companion object {
-        val DAY_DIFFUSE: Long = register("DayDiffuse")
-        val NIGHT_DIFFUSE: Long = register("NightDiffuse")
-        val CLOUD_DETAIL: Long = register("CloudDetail")
-        private val MASK: Long = CubemapAttribute.EnvironmentMap or DAY_DIFFUSE or NIGHT_DIFFUSE or CLOUD_DETAIL
-        private const val HASH_MULTIPLIER: Int = 967
-
-        fun isType(mask: Long): Boolean = (MASK and mask) != 0L
-
-        fun createDay(texture: Cubemap): EarthTextureAttribute =
-            EarthTextureAttribute(
-                type = DAY_DIFFUSE,
-                texture = texture,
-                transform = Matrix4().idt()
-            )
-
-        fun createNight(texture: Cubemap): EarthTextureAttribute =
-            EarthTextureAttribute(
-                type = NIGHT_DIFFUSE,
-                texture = texture,
-                transform = Matrix4().idt()
-            )
-
-        fun createCloudDetail(texture: Cubemap): EarthTextureAttribute =
-            EarthTextureAttribute(
-                type = CLOUD_DETAIL,
-                texture = texture,
-                transform = Matrix4().idt()
-            )
-    }
+    fun createCloudDetail(texture: Cubemap): EarthTextureAttribute =
+      EarthTextureAttribute(
+        type = CLOUD_DETAIL,
+        texture = texture,
+        transform = Matrix4().idt()
+      )
+  }
 }

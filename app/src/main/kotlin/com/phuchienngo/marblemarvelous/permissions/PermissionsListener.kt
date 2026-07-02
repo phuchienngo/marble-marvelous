@@ -1,5 +1,5 @@
 package com.phuchienngo.marblemarvelous.permissions
 
 interface PermissionsListener {
-    fun onPermissionsAccepted(key: String)
+  fun onPermissionsAccepted(key: String)
 }
