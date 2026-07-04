@@ -11,10 +11,10 @@ internal object FilamentDirectBuffers {
   /**
    * Reads a bundled asset straight into a native (direct) [ByteBuffer].
    *
-   * When the asset is stored uncompressed (see the `noCompress` config in the
-   * Gradle build) its length is known up-front, so the bytes are streamed into
-   * a single pre-sized direct buffer with only a small transient transfer
-   * window. Compressed assets fall back to a heap read.
+   * If the asset is stored uncompressed its length is known up-front, so the
+   * bytes are streamed into a single pre-sized direct buffer with only a small
+   * transient transfer window. Compressed assets (the default — the large KTX
+   * textures compress ~4x in the APK) fall back to a heap read then copy.
    */
   fun fromAsset(
     context: Context,

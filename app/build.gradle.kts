@@ -62,15 +62,6 @@ android {
         compose = true
     }
 
-    androidResources {
-        // These assets are already compressed binary formats (ETC2 KTX textures,
-        // precompiled Filament materials, packed mesh). Storing them uncompressed
-        // barely changes APK size but lets them be opened as file descriptors so
-        // they can be streamed straight into a native buffer without a transient
-        // full-size heap copy at load time.
-        noCompress += setOf("ktx", "filamat", "g3db")
-    }
-
     lint {
         abortOnError = false
     }
