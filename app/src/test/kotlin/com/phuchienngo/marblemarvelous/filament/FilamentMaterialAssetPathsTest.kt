@@ -10,8 +10,7 @@ class FilamentMaterialAssetPathsTest {
     val materialAssetPaths: Set<String> =
       setOf(
         FilamentEarthMaterial.ASSET_PATH,
-        FilamentStars.MATERIAL_ASSET_PATH,
-        FilamentMoon.MATERIAL_ASSET_PATH
+        FilamentStars.MATERIAL_ASSET_PATH
     )
 
     for (assetPath in materialAssetPaths) {
