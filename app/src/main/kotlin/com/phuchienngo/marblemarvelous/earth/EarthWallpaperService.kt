@@ -10,6 +10,13 @@ class EarthWallpaperService : UserAwareWallpaperService() {
     config.useAccelerometer = false
     config.useCompass = false
     config.useGyroscope = false
+    config.useGL30 = true
+    config.numSamples = 0
+    config.depth = 0
+    config.r = 8
+    config.g = 8
+    config.b = 8
+    config.a = 8
     return config
   }
 

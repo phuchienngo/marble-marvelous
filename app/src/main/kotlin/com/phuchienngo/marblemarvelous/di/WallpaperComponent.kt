@@ -4,11 +4,13 @@ import android.content.Context
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ChargingController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.PowerSaveController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ScreenRotationController
+import com.phuchienngo.marblemarvelous.wallpaper.controller.ThermalController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.TouchController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.UserPresenceController
 import com.phuchienngo.marblemarvelous.wallpaper.listener.ChargingListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.PowerSaveListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.ScreenOrientationListener
+import com.phuchienngo.marblemarvelous.wallpaper.listener.ThermalListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.TouchListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.UserPresenceListener
 import dagger.BindsInstance
@@ -29,6 +31,8 @@ interface WallpaperComponent {
 
   fun chargingController(): ChargingController
 
+  fun thermalController(): ThermalController
+
   fun touchController(): TouchController
 
   @Component.Factory
@@ -39,6 +43,7 @@ interface WallpaperComponent {
       @BindsInstance powerSaveListener: PowerSaveListener,
       @BindsInstance screenOrientationListener: ScreenOrientationListener,
       @BindsInstance chargingListener: ChargingListener,
+      @BindsInstance thermalListener: ThermalListener,
       @BindsInstance touchListener: TouchListener
     ): WallpaperComponent
   }

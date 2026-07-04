@@ -8,6 +8,7 @@ import com.badlogic.gdx.assets.loaders.resolvers.InternalFileHandleResolver
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.Cubemap
 import com.badlogic.gdx.graphics.CubemapData
+import com.badlogic.gdx.graphics.GL20
 import com.badlogic.gdx.graphics.OrthographicCamera
 import com.badlogic.gdx.graphics.PerspectiveCamera
 import com.badlogic.gdx.graphics.Pixmap
@@ -32,14 +33,22 @@ import com.phuchienngo.marblemarvelous.earth.core.Stars
 import com.phuchienngo.marblemarvelous.earth.shader.EarthMask
 import com.phuchienngo.marblemarvelous.earth.shader.EarthShaderProvider
 import com.phuchienngo.marblemarvelous.earth.shader.attributes.EarthTextureAttribute
+import com.phuchienngo.marblemarvelous.gl.FramebufferHints
 import com.phuchienngo.marblemarvelous.input.InputMultiplexer
 import com.phuchienngo.marblemarvelous.location.UserLocationEarth
 import com.phuchienngo.marblemarvelous.power.FPSThrottler
+import com.phuchienngo.marblemarvelous.power.RenderPowerInput
+import com.phuchienngo.marblemarvelous.power.RenderPowerPolicy
+import com.phuchienngo.marblemarvelous.power.RenderPowerProfile
+import com.phuchienngo.marblemarvelous.power.ThermalLevel
 import com.phuchienngo.marblemarvelous.utils.DateUtils
 import com.phuchienngo.marblemarvelous.utils.FrustumUtils
 import com.phuchienngo.marblemarvelous.utils.ScreenSizeLimiter
 import com.phuchienngo.marblemarvelous.utils.ShaderUtils
 import com.phuchienngo.marblemarvelous.wallpaper.BaseWallpaperEngine
+import com.phuchienngo.marblemarvelous.wallpaper.WallpaperSurfaceMath
+import com.phuchienngo.marblemarvelous.wallpaper.WallpaperSurfaceOrigin
+import com.phuchienngo.marblemarvelous.wallpaper.WallpaperSurfaceSize
 import com.phuchienngo.marblemarvelous.wallpaper.WallpaperThemeProcessor
 import com.phuchienngo.marblemarvelous.wallpaper.controller.UserPresenceController
 import com.phuchienngo.marblemarvelous.weather.CloudsProvider
@@ -66,6 +75,7 @@ class EarthEngine(
   private var cloudsTexture: Cubemap? = null
   private var diffuse: Cubemap? = null
   private var environment: Environment? = null
+  private var earthShaderProvider: EarthShaderProvider? = null
   private var fbo: FrameBuffer? = null
   private var finalShader: ShaderProgram? = null
   private var glow: Glow? = null
@@ -76,7 +86,9 @@ class EarthEngine(
   private var modelBatch: ModelBatch? = null
   private var nextCloudMap: CubemapData? = null
   private var nightDiffuse: Cubemap? = null
-  private var scaledSize: IntArray = intArrayOf(0, 0)
+  private var baseScaledSize: WallpaperSurfaceSize = WallpaperSurfaceSize(width = 1, height = 1)
+  private var scaledSize: WallpaperSurfaceSize = WallpaperSurfaceSize(width = 1, height = 1)
+  private var visibleSize: WallpaperSurfaceSize = WallpaperSurfaceSize(width = 1, height = 1)
   private var season: String? = null
   private var stars: Stars? = null
   private var sunLight: PointLight? = null
@@ -99,6 +111,16 @@ class EarthEngine(
   private var needsCloudsUpdate: Boolean = true
   private var pendingResumeCloudRefresh: Boolean = false
   private var prevCameraPositionIndex: Int = -1
+  private var renderPowerProfile: RenderPowerProfile =
+    RenderPowerPolicy.select(
+      RenderPowerInput(
+        isResumeWarmupActive = true,
+        isTweenAnimating = false,
+        isScrollAnimating = false,
+        isPowerSave = false,
+        thermalLevel = ThermalLevel.NORMAL
+      )
+    )
   private val tweenAod: TweenController = TweenController()
   private val tweenRotation: TweenController = TweenController()
   private val tweenZoom: TweenController = TweenController()
@@ -118,7 +140,9 @@ class EarthEngine(
     assetManager!!.load("earth/earth.g3db", Model::class.java)
     assetManager!!.load("earth/nightMap.ktx", Cubemap::class.java)
     assetManager!!.load("earth/clouds.ktx", Cubemap::class.java)
-    modelBatch = ModelBatch(EarthShaderProvider())
+    val shaderProvider: EarthShaderProvider = EarthShaderProvider()
+    earthShaderProvider = shaderProvider
+    modelBatch = ModelBatch(shaderProvider)
     sunLight = PointLight()
     sunLightPosition = EarthLocationMath.sunLightPosition(0.0f).scl(INITIAL_LIGHT_DISTANCE)
     environment = Environment()
@@ -130,7 +154,9 @@ class EarthEngine(
     cloudsProvider = cloudsProviderFactory.create(this)
     val w: Int = screenSize!!.getWidth().toInt()
     val h: Int = screenSize!!.getHeight().toInt()
-    scaledSize = ScreenSizeLimiter.getScaledSize(w, h, SCALED_WIDTH, SCALED_HEIGHT)
+    updateVisibleSize(w, h)
+    updateBaseScaledSize()
+    scaledSize = scaledSizeForProfile(renderPowerProfile)
     initFbo()
     mask = EarthMask()
     mask!!.setRimFade(0.78f, 0.81f)
@@ -146,8 +172,10 @@ class EarthEngine(
     batch!!.projectionMatrix = glowCamera!!.combined
     batch!!.shader = tintGlow
     batchComposed = SpriteBatch(1)
+    batchComposed!!.projectionMatrix.setToOrtho2D(0.0f, 0.0f, w.toFloat(), h.toFloat())
     finalShader = ShaderUtils.load("earth/final")
     batchComposed!!.shader = finalShader
+    updateRenderTargetProjection()
   }
 
   @Synchronized
@@ -157,16 +185,13 @@ class EarthEngine(
   ) {
     super.resize(width, height)
     Gdx.gl.glViewport(0, 0, width, height)
-    scaledSize = ScreenSizeLimiter.getScaledSize(width, height, SCALED_WIDTH, SCALED_HEIGHT)
-    batchComposed!!.projectionMatrix.setToOrtho2D(0.0f, 0.0f, width.toFloat(), height.toFloat())
-    val yDown: Boolean = true
-    glowCamera!!.setToOrtho(yDown, width.toFloat(), height.toFloat())
-    batch!!.projectionMatrix = glowCamera!!.combined
-    glow!!.resize(width, height)
-    tintGlow!!.bind()
-    tintGlow!!.setUniformf("u_resolution", width.toFloat(), height.toFloat())
-    setEarthAndCameraPosition()
+    updateVisibleSize(width, height)
+    updateBaseScaledSize()
+    scaledSize = scaledSizeForProfile(renderPowerProfile)
     initFbo()
+    batchComposed!!.projectionMatrix.setToOrtho2D(0.0f, 0.0f, width.toFloat(), height.toFloat())
+    updateRenderTargetProjection()
+    setEarthAndCameraPosition()
   }
 
   @Synchronized
@@ -191,19 +216,9 @@ class EarthEngine(
     tweenRotation.update(delta)
     tweenAod.update(delta)
     tweenZoom.update(delta)
+    renderPowerProfile = selectRenderPowerProfile()
     maybeUpdateCloudsAfterResumeWarmup()
-    if (nextCloudMap != null && needsCloudsUpdate && (cloudsTexture == null || !isResumeWarmupActive())) {
-      val pending: CubemapData? = nextCloudMap
-      cloudsTexture?.dispose()
-      cloudsTexture = Cubemap(pending)
-      environment!!.set(CubemapAttribute(CubemapAttribute.EnvironmentMap, cloudsTexture))
-      cloudsTexture!!.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
-      if (pending is CloudsProvider.CloudCubeMap) {
-        pending.dispose()
-      }
-      nextCloudMap = null
-      needsCloudsUpdate = false
-    }
+    applyPendingCloudMapIfAllowed()
     sunLight!!.setIntensity(FOV_INCREASE - tweenAod.getValue())
     stars!!.setAOD(tweenAod.getValue())
     mask!!.setAOD(tweenAod.getValue())
@@ -215,7 +230,7 @@ class EarthEngine(
   }
 
   private fun maybeUpdateCloudsAfterResumeWarmup() {
-    if (!pendingResumeCloudRefresh || isResumeWarmupActive()) {
+    if (!pendingResumeCloudRefresh || !renderPowerProfile.allowCloudRefresh) {
       return
     }
     pendingResumeCloudRefresh = false
@@ -225,11 +240,21 @@ class EarthEngine(
   @Synchronized
   override fun renderWallpaper(): Int {
     super.renderWallpaper()
-    Gdx.gl.glClear(16640)
+    val profile: RenderPowerProfile = renderPowerProfile
+    applyRenderPowerProfile(profile)
+    val targetFbo: FrameBuffer =
+      requireNotNull(fbo) renderTargetLoaded@{
+        return@renderTargetLoaded "Render target framebuffer must be initialized before rendering."
+      }
     mask!!.begin(cam!!, null)
     mask!!.render(mEarth!!, environment!!)
     mask!!.end()
-    val glowTexture: Texture = glow!!.generateGlow(mask!!.getFboTexture(), 2)
+    val glowTexture: Texture = glow!!.generateGlow(mask!!.getFboTexture(), profile.glowPasses)
+    targetFbo.begin()
+    FramebufferHints.discardPreviousColorAttachment()
+    Gdx.gl.glViewport(0, 0, scaledSize.width, scaledSize.height)
+    Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
+    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
     stars!!.begin(cam!!)
     stars!!.render()
     stars!!.end()
@@ -238,8 +263,10 @@ class EarthEngine(
           tan(((cam!!.fieldOfView + FOV_INCREASE) * 0.017453292f).toDouble()) /
               tan((cam!!.fieldOfView * 0.017453292f).toDouble())
           ).toFloat()
-    val dW: Float = screenSize!!.getWidth() * (diff - FOV_INCREASE)
-    val dH: Float = (diff - FOV_INCREASE) * screenSize!!.getHeight()
+    val renderTargetWidth: Float = scaledSize.width.toFloat()
+    val renderTargetHeight: Float = scaledSize.height.toFloat()
+    val dW: Float = renderTargetWidth * (diff - FOV_INCREASE)
+    val dH: Float = (diff - FOV_INCREASE) * renderTargetHeight
     batch!!.begin()
     batch!!.enableBlending()
     tintGlow!!.setUniformf("u_tint_color", glowColor)
@@ -247,25 +274,17 @@ class EarthEngine(
       glowTexture,
       -dW / ACTIVATE_ROTATION,
       -dH / ACTIVATE_ROTATION,
-      screenSize!!.getWidth() + dW,
-      screenSize!!.getHeight() + dH
+      renderTargetWidth + dW,
+      renderTargetHeight + dH
     )
     batch!!.end()
     cam!!.update()
     modelBatch!!.begin(cam)
     modelBatch!!.render(mEarth, environment)
     modelBatch!!.end()
-    val requiresHighFPS: Boolean =
-      isResumeWarmupActive() ||
-          tweenRotation.isAnimating() ||
-          tweenZoom.isAnimating() ||
-          tweenAod.isAnimating()
-    val requiresMediumFPS: Boolean = pageSwipeController.isScrollAnimating()
-    return when {
-      requiresHighFPS -> 60
-      requiresMediumFPS -> 30
-      else -> 18
-    }
+    targetFbo.end()
+    composeRenderTarget(targetFbo.colorBufferTexture)
+    return profile.targetFps
   }
 
   @Synchronized
@@ -297,14 +316,12 @@ class EarthEngine(
     batchComposed = null
     modelBatch?.dispose()
     modelBatch = null
+    earthShaderProvider = null
     fbo?.dispose()
     fbo = null
     diffuse?.dispose()
     diffuse = null
-    val pending: CubemapData? = nextCloudMap
-    if (pending is CloudsProvider.CloudCubeMap) {
-      pending.dispose()
-    }
+    disposeCloudCubeMap(nextCloudMap)
     nextCloudMap = null
     mask?.dispose()
     mask = null
@@ -360,11 +377,33 @@ class EarthEngine(
     val latestCloudMap: CubemapData? = currentCloudsProvider.getLatest()
     if (latestCloudMap != null) {
       val pending: CubemapData? = nextCloudMap
-      if (pending is CloudsProvider.CloudCubeMap) {
-        pending.dispose()
-      }
+      disposeCloudCubeMap(pending)
       nextCloudMap = latestCloudMap
       needsCloudsUpdate = true
+    }
+  }
+
+  private fun applyPendingCloudMapIfAllowed() {
+    val pending: CubemapData = nextCloudMap ?: return
+    if (!needsCloudsUpdate) {
+      return
+    }
+    if (cloudsTexture != null && !renderPowerProfile.allowCloudRefresh) {
+      return
+    }
+    cloudsTexture?.dispose()
+    val cloudMap = Cubemap(pending)
+    cloudsTexture = cloudMap
+    environment!!.set(CubemapAttribute(CubemapAttribute.EnvironmentMap, cloudMap))
+    cloudMap.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
+    disposeCloudCubeMap(pending)
+    nextCloudMap = null
+    needsCloudsUpdate = false
+  }
+
+  private fun disposeCloudCubeMap(cubemapData: CubemapData?) {
+    if (cubemapData is CloudsProvider.CloudCubeMap) {
+      cubemapData.dispose()
     }
   }
 
@@ -378,7 +417,7 @@ class EarthEngine(
     nightDiffuse = assetManager!!.get("earth/nightMap.ktx", Cubemap::class.java)
     nightDiffuse!!.setFilter(
       Texture.TextureFilter.MipMapLinearLinear,
-      Texture.TextureFilter.MipMapLinearLinear
+      Texture.TextureFilter.Linear
     )
     cloudDetailTexture = assetManager!!.get("earth/clouds.ktx", Cubemap::class.java)
     cloudDetailTexture!!.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
@@ -400,7 +439,11 @@ class EarthEngine(
     }
     setEarthAndCameraPosition()
     onCloudsUpdated()
-    currentCloudsProvider.updateClouds()
+    if (renderPowerProfile.allowCloudRefresh) {
+      currentCloudsProvider.updateClouds()
+    } else {
+      pendingResumeCloudRefresh = true
+    }
   }
 
   @Synchronized
@@ -444,8 +487,8 @@ class EarthEngine(
     val earthTransform: Matrix4 = Matrix4().idt()
     earthTransform.rotate(Vector3.Y, 360.0f * dayRatio)
     currentModelTransform.idt().mul(earthTransform)
-    val width: Int = app!!.graphics.width
-    val height: Int = app!!.graphics.height
+    val width: Int = visibleSize.width
+    val height: Int = visibleSize.height
     val minSideFov: Float = FrustumUtils.vFovToHFov(CAMERA_FOV, 9.0f, 16.0f)
     val fovAdj: Float =
       if (width < height) {
@@ -453,7 +496,7 @@ class EarthEngine(
       } else {
         minSideFov
       }
-    cam = PerspectiveCamera(fovAdj, scaledSize[0].toFloat(), scaledSize[1].toFloat())
+    cam = PerspectiveCamera(fovAdj, scaledSize.width.toFloat(), scaledSize.height.toFloat())
     cam!!.near = 0.0f
     cam!!.far = 300.0f
     val box: BoundingBox = BoundingBox()
@@ -604,8 +647,135 @@ class EarthEngine(
   private fun initFbo() {
     fbo?.dispose()
     val hasDepth: Boolean = false
-    fbo = FrameBuffer(Pixmap.Format.RGBA8888, scaledSize[0], scaledSize[1], hasDepth)
+    fbo = FrameBuffer(Pixmap.Format.RGBA8888, scaledSize.width, scaledSize.height, hasDepth)
     fbo!!.colorBufferTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear)
+  }
+
+  private fun applyRenderPowerProfile(profile: RenderPowerProfile) {
+    renderPowerProfile = profile
+    setPreferredSurfaceFrameRate(profile.surfaceFrameRate)
+    earthShaderProvider?.setShaderQuality(profile.shaderQuality)
+    val nextScaledSize: WallpaperSurfaceSize = scaledSizeForProfile(profile)
+    if (nextScaledSize == scaledSize) {
+      return
+    }
+    scaledSize = nextScaledSize
+    initFbo()
+    updateRenderTargetProjection()
+    updateCameraViewport()
+  }
+
+  private fun selectRenderPowerProfile(): RenderPowerProfile =
+    RenderPowerPolicy.select(
+      RenderPowerInput(
+        isResumeWarmupActive = isResumeWarmupActive(),
+        isTweenAnimating = tweenRotation.isAnimating() || tweenZoom.isAnimating() || tweenAod.isAnimating(),
+        isScrollAnimating = pageSwipeController.isScrollAnimating(),
+        isPowerSave = isPowerSave(),
+        thermalLevel = getThermalLevel()
+      )
+    )
+
+  private fun scaledSizeForProfile(profile: RenderPowerProfile): WallpaperSurfaceSize =
+    WallpaperSurfaceMath.scaledSize(
+      baseSize = baseScaledSize,
+      scale = profile.renderScale,
+      minSize = MIN_RENDER_TARGET_SIZE
+    )
+
+  private fun updateRenderTargetProjection() {
+    val renderTargetWidth: Float = scaledSize.width.toFloat()
+    val renderTargetHeight: Float = scaledSize.height.toFloat()
+    val yDown: Boolean = true
+    glowCamera?.setToOrtho(yDown, renderTargetWidth, renderTargetHeight)
+    val currentGlowCamera: OrthographicCamera? = glowCamera
+    if (currentGlowCamera != null) {
+      batch?.projectionMatrix = currentGlowCamera.combined
+    }
+    glow?.resize(scaledSize.width, scaledSize.height)
+    tintGlow?.bind()
+    tintGlow?.setUniformf("u_resolution", renderTargetWidth, renderTargetHeight)
+  }
+
+  private fun updateCameraViewport() {
+    val camera: PerspectiveCamera? = cam
+    if (camera == null) {
+      setEarthAndCameraPosition()
+      return
+    }
+    camera.viewportWidth = scaledSize.width.toFloat()
+    camera.viewportHeight = scaledSize.height.toFloat()
+    camera.update()
+  }
+
+  private fun composeRenderTarget(texture: Texture) {
+    val surfaceWidth: Int = screenSize!!.getWidth().toInt()
+    val surfaceHeight: Int = screenSize!!.getHeight().toInt()
+    val surfaceSize: WallpaperSurfaceSize =
+      WallpaperSurfaceSize(width = surfaceWidth, height = surfaceHeight)
+    val drawOrigin: WallpaperSurfaceOrigin =
+      WallpaperSurfaceMath.visibleDrawOrigin(
+        surfaceSize = surfaceSize,
+        visibleSize = visibleSize,
+        offsetX = visibleSurfaceOffsetX,
+        offsetY = visibleSurfaceOffsetY
+      )
+    Gdx.gl.glViewport(0, 0, surfaceWidth, surfaceHeight)
+    Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
+    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
+    batchComposed!!.begin()
+    batchComposed!!.disableBlending()
+    batchComposed!!.draw(
+      texture,
+      drawOrigin.x.toFloat(),
+      drawOrigin.y.toFloat(),
+      visibleSize.width.toFloat(),
+      visibleSize.height.toFloat()
+    )
+    batchComposed!!.end()
+  }
+
+  private fun updateVisibleSize(
+    surfaceWidth: Int,
+    surfaceHeight: Int
+  ) {
+    val metrics = context.resources.displayMetrics
+    val displayIsLandscape: Boolean = metrics.widthPixels >= metrics.heightPixels
+    val surfaceIsLandscape: Boolean = surfaceWidth >= surfaceHeight
+    val displayWidth: Int =
+      if (displayIsLandscape == surfaceIsLandscape) {
+        metrics.widthPixels
+      } else {
+        metrics.heightPixels
+      }
+    val displayHeight: Int =
+      if (displayIsLandscape == surfaceIsLandscape) {
+        metrics.heightPixels
+      } else {
+        metrics.widthPixels
+      }
+    visibleSize =
+      WallpaperSurfaceMath.visibleSize(
+        surfaceWidth = surfaceWidth,
+        surfaceHeight = surfaceHeight,
+        displayWidth = displayWidth,
+        displayHeight = displayHeight
+      )
+  }
+
+  private fun updateBaseScaledSize() {
+    val nextBaseScaledSize: IntArray =
+      ScreenSizeLimiter.getScaledSize(
+        visibleSize.width,
+        visibleSize.height,
+        SCALED_WIDTH,
+        SCALED_HEIGHT
+      )
+    baseScaledSize =
+      WallpaperSurfaceSize(
+        width = nextBaseScaledSize[0],
+        height = nextBaseScaledSize[1]
+      )
   }
 
   override fun darkText(): Boolean = false
@@ -619,6 +789,7 @@ class EarthEngine(
     private const val FOV_INCREASE: Float = 1.0f
     private const val IDLE_ROTATION_SPEED: Float = 0.85f
     private const val INITIAL_LIGHT_DISTANCE: Float = 100.0f
+    private const val MIN_RENDER_TARGET_SIZE: Int = 1
     private const val PAGE_CHANGE_ROTATION_MULTIPLIER: Float = 7.0f
     private const val PAGE_CHANGING_DAMPING: Float = 1.5f
     private const val SCALED_HEIGHT: Int = 2304

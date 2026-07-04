@@ -11,6 +11,7 @@ uniform float nightLightsPhase;
 uniform float lightIntensity;
 uniform vec4 atmosphereColor1;
 uniform vec4 atmosphereColor2;
+uniform int u_render_quality;
 
 varying vec3 vEye, vLookupNormal;
 varying vec3 vCloudNormal, vCloudShadowNormal;
@@ -57,6 +58,13 @@ vec3 sampleDaySharp(vec3 normal) {
     return clamp(center + (center - blur) * daySharpenAmount, 0.0, 1.0);
 }
 
+vec3 sampleDay(vec3 normal) {
+    if (u_render_quality < 2) {
+        return textureCube( dayMap, normalize(normal) ).rgb;
+    }
+    return sampleDaySharp(normal);
+}
+
 float sampleCloudMask(vec3 normal) {
     vec3 n = normalize(normal);
     // Continuous tangent frame: derive the blur directions smoothly so there is
@@ -66,8 +74,19 @@ float sampleCloudMask(vec3 normal) {
     vec3 tangent = normalize(cross(n, vec3(0., 1., 0.)) + vec3(1e-4, 0., 0.));
     vec3 bitangent = cross(n, tangent);
 
-    // Keep shader blur subtle; the raw cloud mask does most of the edge shaping.
+    if (u_render_quality == 0) {
+        return textureCube( cloudMaskMap, n ).r;
+    }
+
     float cloud = textureCube( cloudMaskMap, n ).r * .48;
+    if (u_render_quality == 1) {
+        cloud = textureCube( cloudMaskMap, n ).r * .60;
+        cloud += textureCube( cloudMaskMap, normalize(n + tangent * cloudBlurOffset) ).r * .20;
+        cloud += textureCube( cloudMaskMap, normalize(n - tangent * cloudBlurOffset) ).r * .20;
+        return cloud;
+    }
+
+    // Keep shader blur subtle; the raw cloud mask does most of the edge shaping.
     cloud += textureCube( cloudMaskMap, normalize(n + tangent * cloudBlurOffset) ).r * .13;
     cloud += textureCube( cloudMaskMap, normalize(n - tangent * cloudBlurOffset) ).r * .13;
     cloud += textureCube( cloudMaskMap, normalize(n + bitangent * cloudBlurOffset) ).r * .13;
@@ -80,7 +99,18 @@ float sampleCloudDetail(vec3 normal) {
     vec3 tangent = normalize(cross(n, vec3(0., 1., 0.)) + vec3(1e-4, 0., 0.));
     vec3 bitangent = cross(n, tangent);
 
+    if (u_render_quality == 0) {
+        return textureCube( cloudDetailMap, n ).r;
+    }
+
     float cloud = textureCube( cloudDetailMap, n ).r * .48;
+    if (u_render_quality == 1) {
+        cloud = textureCube( cloudDetailMap, n ).r * .60;
+        cloud += textureCube( cloudDetailMap, normalize(n + tangent * cloudBlurOffset) ).r * .20;
+        cloud += textureCube( cloudDetailMap, normalize(n - tangent * cloudBlurOffset) ).r * .20;
+        return cloud;
+    }
+
     cloud += textureCube( cloudDetailMap, normalize(n + tangent * cloudBlurOffset) ).r * .13;
     cloud += textureCube( cloudDetailMap, normalize(n - tangent * cloudBlurOffset) ).r * .13;
     cloud += textureCube( cloudDetailMap, normalize(n + bitangent * cloudBlurOffset) ).r * .13;
@@ -135,7 +165,7 @@ void main()  {
 
     // It has part of day texture
     if (lightDirection > -0.25) {
-        dayDiff = sampleDaySharp(vLookupNormal);
+        dayDiff = sampleDay(vLookupNormal);
         dayDiff *= 1. - cloudShadowCoverage * cloudIntensityDay * cloudShadowIntensity; // Shadow
         dayDiff = mix(dayDiff, dayCloudColor, dayCloudOpacity); // Color
         base = dayDiff;

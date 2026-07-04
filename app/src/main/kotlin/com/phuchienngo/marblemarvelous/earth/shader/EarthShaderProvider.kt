@@ -15,10 +15,17 @@ import com.badlogic.gdx.graphics.glutils.ShaderProgram
 import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.math.Vector3
 import com.phuchienngo.marblemarvelous.earth.shader.attributes.EarthTextureAttribute
+import com.phuchienngo.marblemarvelous.power.RenderShaderQuality
 import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.utils.ShaderUtils
 
 class EarthShaderProvider : DefaultShaderProvider() {
+  private var shaderQuality: RenderShaderQuality = RenderShaderQuality.HIGH
+
+  fun setShaderQuality(shaderQuality: RenderShaderQuality) {
+    this.shaderQuality = shaderQuality
+  }
+
   override fun createShader(renderable: Renderable): Shader =
     if (renderable.userData == "earth") {
       EarthShader(renderable)
@@ -26,7 +33,7 @@ class EarthShaderProvider : DefaultShaderProvider() {
       super.createShader(renderable)
     }
 
-  private class EarthShader(
+  private inner class EarthShader(
     private val renderable: Renderable
   ) : BaseShader() {
     private var cloudShadowMatrix: Matrix4? = null
@@ -92,6 +99,7 @@ class EarthShaderProvider : DefaultShaderProvider() {
       shader!!.setUniformMatrix("cloudShadowMatrix", cloudShadowMatrix)
       shader!!.setUniformf("lightPosition", tmpLightPos)
       shader!!.setUniformf("lightIntensity", sunLight.intensity)
+      shader!!.setUniformi("u_render_quality", shaderQuality.uniformValue)
       (day.textureDescription.texture as Cubemap).bind(4)
       shader!!.setUniformi("dayMap", 4)
       (night.textureDescription.texture as Cubemap).bind(3)

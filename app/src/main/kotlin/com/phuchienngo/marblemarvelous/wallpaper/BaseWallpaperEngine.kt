@@ -6,6 +6,7 @@ import com.badlogic.gdx.Gdx
 import com.phuchienngo.marblemarvelous.input.InputMultiplexer
 import com.phuchienngo.marblemarvelous.power.FPSThrottler
 import com.phuchienngo.marblemarvelous.power.ResumeRenderWarmup
+import com.phuchienngo.marblemarvelous.power.ThermalLevel
 import com.phuchienngo.marblemarvelous.utils.BaseMathUtils
 import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.utils.Size
@@ -13,6 +14,7 @@ import com.phuchienngo.marblemarvelous.wallpaper.controller.PageSwipeController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ScreenRotationController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.UserPresenceController
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 
 open class BaseWallpaperEngine(
   inputMultiplexer: InputMultiplexer,
@@ -39,6 +41,12 @@ open class BaseWallpaperEngine(
 
   @JvmField
   protected var isPreviewFirst = false
+
+  @JvmField
+  protected var visibleSurfaceOffsetX = 0
+
+  @JvmField
+  protected var visibleSurfaceOffsetY = 0
   private var hasBeenPreviewed = false
   private var hasBeenSet = false
   private val wallpaperLoaded: AtomicBoolean = AtomicBoolean(WALLPAPER_NOT_LOADED)
@@ -46,6 +54,8 @@ open class BaseWallpaperEngine(
   private var continuousRenderingTarget = true
   private var requestedRendering = false
   private var lastTimeNanos = 0L
+  private var lastSurfaceFrameRate = 0.0f
+  private var preferredSurfaceFrameRate = 0.0f
   private val resumeRenderWarmup: ResumeRenderWarmup =
     ResumeRenderWarmup(
       clock = resumeWarmupClock@{
@@ -65,11 +75,7 @@ open class BaseWallpaperEngine(
     screenSize = Size(app!!.graphics.width.toFloat(), app!!.graphics.height.toFloat())
     initialized = true
     initialize()
-    Gdx.gl.glEnable(UserAwareWallpaperService.GL_BINNING_CONTROL_HINT_QCOM)
-    Gdx.gl.glHint(
-      UserAwareWallpaperService.GL_BINNING_CONTROL_HINT_QCOM,
-      UserAwareWallpaperService.GL_BINNING_QCOM
-    )
+    enableQualcommBinningHint()
     Console.log(TAG, "Create")
     resume()
   }
@@ -106,6 +112,7 @@ open class BaseWallpaperEngine(
       }
       val fps: Int = renderWallpaper()
       fpsThrottler.endFrame(fps)
+      updateSurfaceFrameRate(fps)
       lastTimeNanos = currentTimeNanos
       if (!continuousRendering && requestedRendering) {
         fpsThrottler.requestRendering(force = false)
@@ -122,6 +129,7 @@ open class BaseWallpaperEngine(
   @Synchronized
   override fun pause() {
     fpsThrottler.pause()
+    clearSurfaceFrameRate()
     isPaused = true
   }
 
@@ -137,6 +145,7 @@ open class BaseWallpaperEngine(
   @Synchronized
   override fun dispose() {
     fpsThrottler.dispose()
+    clearSurfaceFrameRate()
     initialized = false
     if (!wallpaperLoaded.get()) {
       setWallpaperReady()
@@ -152,6 +161,11 @@ open class BaseWallpaperEngine(
   }
 
   override fun chargingStateChange(isCharging: Boolean) {
+    resetDeltaTime()
+    requestRendering(force = false)
+  }
+
+  override fun thermalStatusChange(thermalLevel: ThermalLevel) {
     resetDeltaTime()
     requestRendering(force = false)
   }
@@ -172,6 +186,8 @@ open class BaseWallpaperEngine(
     xPixelOffset: Int,
     yPixelOffset: Int
   ) {
+    visibleSurfaceOffsetX = WallpaperSurfaceMath.visibleSurfaceOrigin(xPixelOffset)
+    visibleSurfaceOffsetY = WallpaperSurfaceMath.visibleSurfaceOrigin(yPixelOffset)
     if (!isLoaded() || xOffsetStep == 0.0f || xOffsetStep == -1.0f) {
       return
     }
@@ -230,6 +246,10 @@ open class BaseWallpaperEngine(
 
   protected open fun renderWallpaper(): Int = 60
 
+  protected fun setPreferredSurfaceFrameRate(frameRate: Float) {
+    preferredSurfaceFrameRate = frameRate
+  }
+
   protected fun isResumeWarmupActive(): Boolean = resumeRenderWarmup.isActive()
 
   protected open fun scrollChange(scrollX: Float) {}
@@ -267,9 +287,56 @@ open class BaseWallpaperEngine(
     }
   }
 
+  private fun updateSurfaceFrameRate(fps: Int) {
+    val targetFrameRate: Float =
+      if (preferredSurfaceFrameRate > 0.0f) {
+        preferredSurfaceFrameRate
+      } else {
+        effectiveSurfaceFrameRate(fps)
+      }
+    if (abs(targetFrameRate - lastSurfaceFrameRate) < SURFACE_FRAME_RATE_EPSILON) {
+      return
+    }
+    setWallpaperFrameRate(targetFrameRate)
+    lastSurfaceFrameRate = targetFrameRate
+  }
+
+  private fun effectiveSurfaceFrameRate(fps: Int): Float {
+    if (!isPowerSave()) {
+      return fps.toFloat()
+    }
+    return (fps / 2)
+      .coerceAtLeast(MIN_SURFACE_FRAME_RATE)
+      .toFloat()
+  }
+
+  private fun clearSurfaceFrameRate() {
+    if (lastSurfaceFrameRate == 0.0f) {
+      return
+    }
+    setWallpaperFrameRate(CLEAR_SURFACE_FRAME_RATE)
+    lastSurfaceFrameRate = CLEAR_SURFACE_FRAME_RATE
+    preferredSurfaceFrameRate = CLEAR_SURFACE_FRAME_RATE
+  }
+
+  private fun enableQualcommBinningHint() {
+    if (!Gdx.graphics.supportsExtension(QUALCOMM_BINNING_EXTENSION)) {
+      return
+    }
+    Gdx.gl.glEnable(UserAwareWallpaperService.GL_BINNING_CONTROL_HINT_QCOM)
+    Gdx.gl.glHint(
+      UserAwareWallpaperService.GL_BINNING_CONTROL_HINT_QCOM,
+      UserAwareWallpaperService.GL_BINNING_QCOM
+    )
+  }
+
   companion object {
     private val TAG: String = BaseWallpaperEngine::class.java.toString()
     private const val WALLPAPER_LOADED: Boolean = true
     private const val WALLPAPER_NOT_LOADED: Boolean = false
+    private const val CLEAR_SURFACE_FRAME_RATE: Float = 0.0f
+    private const val MIN_SURFACE_FRAME_RATE: Int = 1
+    private const val QUALCOMM_BINNING_EXTENSION: String = "GL_QCOM_binning_control"
+    private const val SURFACE_FRAME_RATE_EPSILON: Float = 0.25f
   }
 }

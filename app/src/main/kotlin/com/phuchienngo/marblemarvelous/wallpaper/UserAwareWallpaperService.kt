@@ -3,8 +3,10 @@ package com.phuchienngo.marblemarvelous.wallpaper
 import android.app.WallpaperColors
 import android.graphics.Color
 import android.opengl.GLSurfaceView
+import android.os.Build
 import android.service.wallpaper.WallpaperService
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.SurfaceHolder
 import com.badlogic.gdx.ApplicationListener
 import com.badlogic.gdx.backends.android.AndroidApplicationConfiguration
@@ -16,15 +18,18 @@ import com.phuchienngo.marblemarvelous.di.DaggerWallpaperComponent
 import com.phuchienngo.marblemarvelous.di.WallpaperComponent
 import com.phuchienngo.marblemarvelous.input.InputMultiplexer
 import com.phuchienngo.marblemarvelous.input.InputProcessor
+import com.phuchienngo.marblemarvelous.power.ThermalLevel
 import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ChargingController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.PowerSaveController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.ScreenRotationController
+import com.phuchienngo.marblemarvelous.wallpaper.controller.ThermalController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.TouchController
 import com.phuchienngo.marblemarvelous.wallpaper.controller.UserPresenceController
 import com.phuchienngo.marblemarvelous.wallpaper.listener.ChargingListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.PowerSaveListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.ScreenOrientationListener
+import com.phuchienngo.marblemarvelous.wallpaper.listener.ThermalListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.TouchListener
 import com.phuchienngo.marblemarvelous.wallpaper.listener.UserPresenceListener
 import java.util.concurrent.atomic.AtomicBoolean
@@ -35,6 +40,7 @@ abstract class UserAwareWallpaperService :
   UserPresenceListener,
   ScreenOrientationListener,
   ChargingListener,
+  ThermalListener,
   TouchListener {
   private var chargingController: ChargingController? = null
 
@@ -43,6 +49,7 @@ abstract class UserAwareWallpaperService :
   private var powerSaveController: PowerSaveController? = null
   private var receiverRegistered = false
   private var screenRotationController: ScreenRotationController? = null
+  private var thermalController: ThermalController? = null
   private var touchController: TouchController? = null
   private var userPresenceController: UserPresenceController? = null
 
@@ -72,7 +79,7 @@ abstract class UserAwareWallpaperService :
     val component: WallpaperComponent =
       DaggerWallpaperComponent
         .factory()
-        .create(this, this, this, this, this, this)
+        .create(this, this, this, this, this, this, this)
     userPresenceController = component.userPresenceController()
     userPresenceController?.resume(fireStraightAway = true)
     powerSaveController = component.powerSaveController()
@@ -81,6 +88,8 @@ abstract class UserAwareWallpaperService :
     screenRotationController?.resume(fireStraightAway = true)
     chargingController = component.chargingController()
     chargingController?.resume(fireStraightAway = true)
+    thermalController = component.thermalController()
+    thermalController?.resume(fireStraightAway = true)
     touchController = component.touchController()
     receiverRegistered = true
   }
@@ -115,6 +124,13 @@ abstract class UserAwareWallpaperService :
     glView().queueEvent updateChargingState@{
       engine?.updateIsCharging(isCharging)
       return@updateChargingState
+    }
+  }
+
+  override fun onThermalLevelChanged(thermalLevel: ThermalLevel) {
+    glView().queueEvent updateThermalLevel@{
+      engine?.updateThermalLevel(thermalLevel)
+      return@updateThermalLevel
     }
   }
 
@@ -184,11 +200,13 @@ abstract class UserAwareWallpaperService :
       powerSaveController?.dispose()
       screenRotationController?.dispose()
       chargingController?.dispose()
+      thermalController?.dispose()
       receiverRegistered = false
       userPresenceController = null
       powerSaveController = null
       screenRotationController = null
       chargingController = null
+      thermalController = null
       touchController = null
     }
     val currentEngine: UserAwareEngine? = engine
@@ -210,6 +228,7 @@ abstract class UserAwareWallpaperService :
     private var userPresence = "unlocked"
     private var chargingState = false
     private var screenOrientation = ScreenRotationController.DEFAULT_SCREEN_ROTATION
+    private var thermalLevel: ThermalLevel = ThermalLevel.NORMAL
 
     @JvmField
     protected var wallpaperColors: WallpaperColors? = null
@@ -222,6 +241,8 @@ abstract class UserAwareWallpaperService :
 
     abstract fun screenOrientationChange(orientation: ScreenRotationController.ScreenRotation)
 
+    abstract fun thermalStatusChange(thermalLevel: ThermalLevel)
+
     abstract fun userPresenceChange(
       newUserPresence: String,
       prevUserPresence: String,
@@ -232,6 +253,8 @@ abstract class UserAwareWallpaperService :
 
     protected fun isPowerSave(): Boolean = isPowerSave
 
+    protected fun getThermalLevel(): ThermalLevel = thermalLevel
+
     protected fun getUserPresence(): String = userPresence
 
     protected fun getScreenOrientation(): ScreenRotationController.ScreenRotation =
@@ -240,6 +263,17 @@ abstract class UserAwareWallpaperService :
     protected fun notifyWallpaperColorsChanged() {
       Console.log(TAG, "//// UI Color Change Notified?", (engineReference != null).toString())
       engineReference?.notifyColorsChanged()
+    }
+
+    protected fun setWallpaperFrameRate(frameRate: Float) {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        return
+      }
+      val surface: Surface = engineReference?.surfaceHolder?.surface ?: return
+      if (!surface.isValid) {
+        return
+      }
+      surface.setFrameRate(frameRate, Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
     }
 
     protected fun setWallpaperColors(wallpaperColors: WallpaperColors?) {
@@ -298,6 +332,11 @@ abstract class UserAwareWallpaperService :
     fun updateScreenOrientation(orientation: ScreenRotationController.ScreenRotation) {
       screenOrientation = orientation
       screenOrientationChange(orientation)
+    }
+
+    fun updateThermalLevel(thermalLevel: ThermalLevel) {
+      this.thermalLevel = thermalLevel
+      thermalStatusChange(thermalLevel)
     }
 
     fun updateIsCharging(isCharging: Boolean) {

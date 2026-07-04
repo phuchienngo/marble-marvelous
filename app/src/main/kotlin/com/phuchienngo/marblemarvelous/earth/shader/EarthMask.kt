@@ -17,6 +17,7 @@ import com.badlogic.gdx.math.Matrix4
 import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.utils.Array
 import com.badlogic.gdx.utils.FlushablePool
+import com.phuchienngo.marblemarvelous.gl.FramebufferHints
 import com.phuchienngo.marblemarvelous.utils.ShaderUtils
 import com.phuchienngo.marblemarvelous.utils.Size
 
@@ -59,6 +60,7 @@ class EarthMask {
     mCamera.fieldOfView = camera.fieldOfView + dFov
     mCamera.update()
     fbo.begin()
+    FramebufferHints.discardPreviousColorAttachment()
     Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
     Gdx.gl.glClear(16384)
     maskShader.bind()

@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera
 import com.badlogic.gdx.graphics.Texture
 import com.badlogic.gdx.graphics.glutils.FrameBuffer
 import com.badlogic.gdx.graphics.glutils.ShaderProgram
+import com.phuchienngo.marblemarvelous.gl.FramebufferHints
 import com.phuchienngo.marblemarvelous.gl.SingleFloatFrameBuffer
 import com.phuchienngo.marblemarvelous.mesh.PlaneConstructor
 import com.phuchienngo.marblemarvelous.utils.ShaderUtils
@@ -81,6 +82,7 @@ class Glow {
 
   private fun begin(fbo: FrameBuffer) {
     fbo.begin()
+    FramebufferHints.discardPreviousColorAttachment()
     Gdx.gl.glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
     Gdx.gl.glClear(16384)
     Gdx.gl.glEnable(GL20.GL_DITHER)
