@@ -5,6 +5,8 @@ import com.google.android.filament.Engine
 import com.google.android.filament.MaterialInstance
 import com.google.android.filament.Texture
 import com.google.android.filament.TextureSampler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -34,26 +36,32 @@ internal class FilamentEarthTextures private constructor(
     engine.destroyTexture(cloudDetailMap)
   }
 
-  fun reloadCloudMask(
+  /**
+   * Swaps in the latest cached OpenWeather cloud faces. The blocking file read
+   * runs off the main thread (see [readCloudFacesBuffer]); the Filament texture
+   * is then built back on the caller's (render) thread. Returns false when no
+   * cached faces are available yet, leaving the current mask untouched.
+   */
+  suspend fun reloadCloudMask(
     context: Context,
     engine: Engine,
     materialInstance: MaterialInstance
   ): Boolean {
-    val rawCloudTexture: RawCloudTexture =
-      loadCachedCloudMask(context, engine) ?: return false
+    val cloudBuffer: ByteBuffer = readCloudFacesBuffer(context) ?: return false
+    val newCloudMaskMap: Texture = buildCloudMaskTexture(engine, cloudBuffer)
     val previousCloudMaskMap: Texture = cloudMaskMap
 
     try {
       materialInstance.setParameter(
         FilamentEarthMaterial.CLOUD_MASK_MAP,
-        rawCloudTexture.texture,
+        newCloudMaskMap,
         sampler
       )
     } catch (throwable: Throwable) {
-      engine.destroyTexture(rawCloudTexture.texture)
+      engine.destroyTexture(newCloudMaskMap)
       throw throwable
     }
-    cloudMaskMap = rawCloudTexture.texture
+    cloudMaskMap = newCloudMaskMap
 
     if (previousCloudMaskMap !== cloudDetailMap) {
       engine.destroyTexture(previousCloudMaskMap)
@@ -62,6 +70,9 @@ internal class FilamentEarthTextures private constructor(
   }
 
   companion object {
+    // The cloud mask starts on the bundled detail map and is upgraded to the
+    // real OpenWeather faces asynchronously via reloadCloudMask, so construction
+    // never blocks the render thread on the cached-face file read.
     fun create(
       context: Context,
       engine: Engine
@@ -86,12 +97,10 @@ internal class FilamentEarthTextures private constructor(
           engine = engine,
           assetPath = FilamentEarthAssetPaths.CLOUD_DETAIL_MAP
         )
-      val rawCloudTexture: RawCloudTexture? = loadCachedCloudMask(context, engine)
-      val cloudMaskMap: Texture = rawCloudTexture?.texture ?: cloudDetailMap
       return FilamentEarthTextures(
         dayMap = dayMap,
         nightMap = nightMap,
-        cloudMaskMap = cloudMaskMap,
+        cloudMaskMap = cloudDetailMap,
         cloudDetailMap = cloudDetailMap,
         sampler =
           TextureSampler(
@@ -111,10 +120,8 @@ internal class FilamentEarthTextures private constructor(
       return FilamentKtxCubeTextureArrayLoader.createTexture(engine, uploadBuffer)
     }
 
-    private fun loadCachedCloudMask(
-      context: Context,
-      engine: Engine
-    ): RawCloudTexture? {
+    /** Reads the six cached faces into one direct buffer, or null if any is missing. */
+    private suspend fun readCloudFacesBuffer(context: Context): ByteBuffer? {
       val rawFaces: Array<File> =
         Array(FACE_NAMES.size) { faceIndex: Int ->
           return@Array File(
@@ -136,7 +143,14 @@ internal class FilamentEarthTextures private constructor(
         readFileInto(file, uploadBuffer)
       }
       uploadBuffer.flip()
+      return uploadBuffer
+    }
 
+    /** Filament resource creation — must run on the engine (render) thread. */
+    private fun buildCloudMaskTexture(
+      engine: Engine,
+      uploadBuffer: ByteBuffer
+    ): Texture {
       val texture: Texture =
         Texture
           .Builder()
@@ -149,13 +163,14 @@ internal class FilamentEarthTextures private constructor(
           .levels(1)
           .build(engine)
       texture.setTextureArrayImage(engine, uploadBuffer)
-      return RawCloudTexture(texture)
+      return texture
     }
 
-    private fun readFileInto(
+    /** Streams one face into [buffer] off the main thread. */
+    private suspend fun readFileInto(
       file: File,
       buffer: ByteBuffer
-    ) {
+    ) = withContext(Dispatchers.IO) {
       FileInputStream(file).use { inputStream ->
         val channel = inputStream.channel
         while (buffer.hasRemaining() && channel.read(buffer) >= 0) {
@@ -196,10 +211,6 @@ internal class FilamentEarthTextures private constructor(
         descriptor
       )
     }
-
-    private data class RawCloudTexture(
-      val texture: Texture
-    )
 
     private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
     private const val FACE_SIZE: Int = 512

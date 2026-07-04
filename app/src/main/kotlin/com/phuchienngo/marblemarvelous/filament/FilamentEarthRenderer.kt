@@ -285,7 +285,7 @@ internal class FilamentEarthRenderer(
     )
   }
 
-  fun reloadCloudMask(context: Context): Boolean =
+  suspend fun reloadCloudMask(context: Context): Boolean =
     earthTextures.reloadCloudMask(context, engine, materialInstance)
 
   fun destroy() {

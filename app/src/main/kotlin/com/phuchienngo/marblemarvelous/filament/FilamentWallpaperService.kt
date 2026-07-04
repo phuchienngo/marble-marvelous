@@ -184,6 +184,10 @@ class FilamentWallpaperService : WallpaperService() {
       }
       cloudRefreshJob =
         cloudRefreshScope.launch {
+          // Show the last cached real clouds right away (read off-main) so a
+          // fresh engine doesn't linger on the bundled fallback while the
+          // network refresh runs.
+          reloadCloudMaskAndRender()
           val generated: Boolean =
             try {
               openWeatherClouds.generateCubeFaces(applicationContext, apiKey)
@@ -197,16 +201,22 @@ class FilamentWallpaperService : WallpaperService() {
           if (!generated || isDestroyed) {
             return@launch
           }
-          val currentRenderer: FilamentEarthRenderer = renderer ?: return@launch
-          try {
-            val reloaded: Boolean = currentRenderer.reloadCloudMask(applicationContext)
-            if (reloaded) {
-              renderOnce()
-            }
-          } catch (throwable: Throwable) {
-            Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
-          }
+          reloadCloudMaskAndRender()
         }
+    }
+
+    private suspend fun reloadCloudMaskAndRender() {
+      if (isDestroyed) {
+        return
+      }
+      val currentRenderer: FilamentEarthRenderer = renderer ?: return
+      try {
+        if (currentRenderer.reloadCloudMask(applicationContext)) {
+          renderOnce()
+        }
+      } catch (throwable: Throwable) {
+        Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
+      }
     }
 
     private fun startAuroraRefresh() {
