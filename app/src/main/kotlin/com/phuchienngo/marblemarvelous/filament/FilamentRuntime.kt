@@ -1,7 +1,6 @@
 package com.phuchienngo.marblemarvelous.filament
 
 import com.google.android.filament.Filament
-import com.google.android.filament.filamat.MaterialBuilder
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal object FilamentRuntime {
@@ -12,6 +11,5 @@ internal object FilamentRuntime {
       return
     }
     Filament.init()
-    MaterialBuilder.init()
   }
 }

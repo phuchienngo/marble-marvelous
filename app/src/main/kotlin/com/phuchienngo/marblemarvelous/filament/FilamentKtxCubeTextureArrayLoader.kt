@@ -126,6 +126,10 @@ internal object FilamentKtxCubeTextureArrayLoader {
     compressedFormat: Texture.CompressedFormat,
     levelBytes: Int
   ) {
+    val descriptor = Texture.PixelBufferDescriptor(buffer, compressedFormat, levelBytes)
+    // A callback makes Filament hold a reference to the upload buffer until the
+    // async GPU upload completes, then release it (so it can be reclaimed).
+    descriptor.setCallback(null, FilamentUploadBuffers.RELEASE_AFTER_UPLOAD)
     setImage(
       engine,
       level,
@@ -135,7 +139,7 @@ internal object FilamentKtxCubeTextureArrayLoader {
       getWidth(level),
       getHeight(level),
       CUBEMAP_FACE_COUNT,
-      Texture.PixelBufferDescriptor(buffer, compressedFormat, levelBytes)
+      descriptor
     )
   }
 

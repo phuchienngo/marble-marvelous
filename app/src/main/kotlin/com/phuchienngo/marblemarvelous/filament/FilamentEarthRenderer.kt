@@ -36,12 +36,12 @@ import kotlin.math.sin
 
 internal class FilamentEarthRenderer(
   context: Context,
-  surface: Surface,
   private val isPreview: Boolean
 ) {
   private val engine: Engine
   private val entityManager: EntityManager
-  private val swapChain: SwapChain
+  private var swapChain: SwapChain? = null
+  private var attachedSurface: Surface? = null
   private val renderer: Renderer
   private val scene: Scene
   private val view: View
@@ -60,6 +60,15 @@ internal class FilamentEarthRenderer(
   private var cameraVerticalFovDegrees: Float = CAMERA_FOV_DEGREES
   private var cameraNeedsUpdate: Boolean = true
   private var firstFrameTimeNanos: Long = 0L
+  private var lastDateSampleMillis: Long = 0L
+  private var cachedUtcDayRatio: Float = 0.0f
+  private val earthTransform: FloatArray =
+    floatArrayOf(
+      1.0f, 0.0f, 0.0f, 0.0f,
+      0.0f, 1.0f, 0.0f, 0.0f,
+      0.0f, 0.0f, 1.0f, 0.0f,
+      0.0f, 0.0f, 0.0f, 1.0f
+    )
 
   init {
     val cleanupStack = FailureCleanupStack()
@@ -72,10 +81,6 @@ internal class FilamentEarthRenderer(
       }
       Log.i(TAG, "Filament backend: ${engine.backend}")
 
-      swapChain = engine.createSwapChain(surface)
-      cleanupStack.register {
-        engine.destroySwapChain(swapChain)
-      }
       renderer = engine.createRenderer()
       cleanupStack.register {
         engine.destroyRenderer(renderer)
@@ -118,6 +123,9 @@ internal class FilamentEarthRenderer(
       }
       view.camera = camera
       userLocation = UserLocationEarth(context)
+      cleanupStack.register {
+        userLocation.dispose()
+      }
 
       val mesh: FilamentEarthMeshData =
         context.assets.open(EARTH_MODEL_ASSET).use { input ->
@@ -131,7 +139,7 @@ internal class FilamentEarthRenderer(
       cleanupStack.register {
         engine.destroyIndexBuffer(indexBuffer)
       }
-      material = FilamentEarthMaterial.create(engine)
+      material = FilamentEarthMaterial.create(context, engine)
       cleanupStack.register {
         engine.destroyMaterial(material)
       }
@@ -144,7 +152,6 @@ internal class FilamentEarthRenderer(
         earthTextures.destroy(engine)
       }
       earthTextures.bind(materialInstance)
-      updateSunDirection()
 
       earthEntity = entityManager.create()
       cleanupStack.register {
@@ -183,7 +190,7 @@ internal class FilamentEarthRenderer(
         scene.removeEntity(earthEntity)
       }
 
-      stars = FilamentStars.create(engine, entityManager)
+      stars = FilamentStars.create(context, engine, entityManager)
       cleanupStack.register {
         stars.destroy(engine, entityManager)
       }
@@ -196,6 +203,28 @@ internal class FilamentEarthRenderer(
       cleanupStack.cleanUpFailure(throwable)
       throw throwable
     }
+  }
+
+  fun attachSurface(surface: Surface) {
+    if (attachedSurface === surface && swapChain != null) {
+      return
+    }
+    detachSurface()
+    swapChain = engine.createSwapChain(surface)
+    attachedSurface = surface
+  }
+
+  fun detachSurface() {
+    val currentSwapChain: SwapChain = swapChain ?: return
+    swapChain = null
+    attachedSurface = null
+    // Resume first: flushAndWait blocks on the backend thread, which is
+    // suspended while the (Vulkan) engine is paused. Then drain any in-flight
+    // frame so the GPU no longer reads the surface before the swap chain is
+    // destroyed. The Engine and all its resources are kept alive for reuse.
+    engine.setPaused(false)
+    engine.flushAndWait()
+    engine.destroySwapChain(currentSwapChain)
   }
 
   fun resize(
@@ -232,13 +261,17 @@ internal class FilamentEarthRenderer(
     if (!paused) {
       cameraNeedsUpdate = true
       firstFrameTimeNanos = 0L
+      lastDateSampleMillis = 0L
     }
   }
 
   fun render(frameTimeNanos: Long) {
+    val currentSwapChain: SwapChain = swapChain ?: return
     updateEarthTransform(frameTimeNanos)
     updateCameraIfNeeded()
-    if (!renderer.beginFrame(swapChain, frameTimeNanos)) {
+    val elapsedSeconds: Float = (frameTimeNanos - firstFrameTimeNanos).toFloat() * NANOS_TO_SECONDS
+    stars.setTime(elapsedSeconds)
+    if (!renderer.beginFrame(currentSwapChain, frameTimeNanos)) {
       return
     }
     renderer.render(view)
@@ -249,6 +282,8 @@ internal class FilamentEarthRenderer(
     earthTextures.reloadCloudMask(context, engine, materialInstance)
 
   fun destroy() {
+    detachSurface()
+    userLocation.dispose()
     scene.removeEntity(earthEntity)
     scene.removeEntity(stars.entity)
     stars.destroy(engine, entityManager)
@@ -265,7 +300,6 @@ internal class FilamentEarthRenderer(
     engine.destroyView(view)
     engine.destroyScene(scene)
     engine.destroyRenderer(renderer)
-    engine.destroySwapChain(swapChain)
     engine.destroy()
   }
 
@@ -307,48 +341,28 @@ internal class FilamentEarthRenderer(
   }
 
   private fun updateEarthTransform(frameTimeNanos: Long) {
-    val utcDate: Date = DateUtils.getUTC(DateUtils.now()) ?: DateUtils.now()
-    val beginningOfDay: Date = DateUtils.getAtBeginningOfDay(utcDate)
-    val utcDayRatio: Float = (utcDate.time - beginningOfDay.time) / DateUtils.MILLIS_IN_A_DAY
     if (firstFrameTimeNanos == 0L) {
       firstFrameTimeNanos = frameTimeNanos
     }
+    refreshDateSampleIfNeeded()
     val seconds: Float = (frameTimeNanos - firstFrameTimeNanos).toFloat() * NANOS_TO_SECONDS
-    val realtimeYawRadians: Float = FilamentEarthMotion.realtimeYawRadians(utcDayRatio)
     val angle: Float =
       FilamentEarthMotion.earthYawRadians(
-        utcDayRatio = utcDayRatio,
+        utcDayRatio = cachedUtcDayRatio,
         elapsedSeconds = seconds
       )
-    updateSunDirection(
-      earthRotationRadians = realtimeYawRadians
-    )
     val cosine: Float = cos(angle)
     val sine: Float = sin(angle)
-    val transform = floatArrayOf(
-      cosine,
-      0.0f,
-      -sine,
-      0.0f,
-      0.0f,
-      1.0f,
-      0.0f,
-      0.0f,
-      sine,
-      0.0f,
-      cosine,
-      0.0f,
-      0.0f,
-      0.0f,
-      0.0f,
-      1.0f
-    )
+    earthTransform[0] = cosine
+    earthTransform[2] = -sine
+    earthTransform[8] = sine
+    earthTransform[10] = cosine
     val transformManager = engine.transformManager
     val transformInstance: Int = transformManager.getInstance(earthEntity)
     if (transformInstance == NO_TRANSFORM_INSTANCE) {
       return
     }
-    transformManager.setTransform(transformInstance, transform)
+    transformManager.setTransform(transformInstance, earthTransform)
   }
 
   private fun updateCameraIfNeeded() {
@@ -412,9 +426,27 @@ internal class FilamentEarthRenderer(
       .add(direction.scale(offset.z))
   }
 
-  private fun updateSunDirection(earthRotationRadians: Float = 0.0f) {
+  private fun refreshDateSampleIfNeeded() {
+    val nowMillis: Long = System.currentTimeMillis()
+    if (lastDateSampleMillis != 0L &&
+      nowMillis - lastDateSampleMillis < DATE_SAMPLE_INTERVAL_MILLIS
+    ) {
+      return
+    }
+    lastDateSampleMillis = nowMillis
     val utcDate: Date = DateUtils.getUTC(DateUtils.now()) ?: DateUtils.now()
-    val dayOfYear: Int = DateUtils.getDayOfYear(utcDate)
+    val beginningOfDay: Date = DateUtils.getAtBeginningOfDay(utcDate)
+    cachedUtcDayRatio = (utcDate.time - beginningOfDay.time) / DateUtils.MILLIS_IN_A_DAY
+    updateSunDirection(
+      dayOfYear = DateUtils.getDayOfYear(utcDate),
+      earthRotationRadians = FilamentEarthMotion.realtimeYawRadians(cachedUtcDayRatio)
+    )
+  }
+
+  private fun updateSunDirection(
+    dayOfYear: Int,
+    earthRotationRadians: Float
+  ) {
     val sunDirection: Vec3 =
       FilamentSunDirection.localDirectionForEarthRotation(
         dayOfYear = dayOfYear,
@@ -454,6 +486,7 @@ internal class FilamentEarthRenderer(
     private const val CAMERA_FAR: Double = 20.0
     private const val CAMERA_FOV_DEGREES: Float = 20.0f
     private const val CAMERA_NEAR: Double = 0.1
+    private const val DATE_SAMPLE_INTERVAL_MILLIS: Long = 1000L
     private const val EARTH_MODEL_ASSET: String = "earth/earth.g3db"
     private const val EARTH_SURFACE_RADIUS: Float = 0.6570345f
     private const val FLOAT_BYTES: Int = 4

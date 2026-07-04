@@ -5,11 +5,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import com.phuchienngo.marblemarvelous.di.WeatherDispatcher
-import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.FACE
-import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.LON_OFFSET_DEG
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -40,9 +42,6 @@ import kotlin.math.tan
  * cube map (no GL/shader changes needed). Set OPENWEATHER_API_KEY as a Gradle
  * property or environment variable before building. Empty key keeps the bundled
  * earth/clouds.ktx.
- *
- * NOTE: cube orientation vs the Earth model may need a [LON_OFFSET_DEG] tweak
- * once it can be run on a device.
  */
 @Singleton
 class OpenWeatherClouds
@@ -56,7 +55,7 @@ constructor(
     apiKey: String?
   ): Boolean {
     if (apiKey.isNullOrBlank()) {
-      Console.info(TAG, "No OpenWeather API key set. Keeping bundled clouds.")
+      Log.i(TAG, "No OpenWeather API key set. Keeping bundled clouds.")
       return false
     }
     return withContext(defaultDispatcher) generateFaces@{
@@ -65,10 +64,12 @@ constructor(
         return@generateFaces false
       }
       try {
+        val tilesPerAxis: Int = 1 shl SRC_ZOOM
+        prefetchTiles(tileDirectory, tilesPerAxis, apiKey)
         val source: TiledCloudSource =
           TiledCloudSource(
             tileDirectory = tileDirectory,
-            tilesPerAxis = 1 shl SRC_ZOOM,
+            tilesPerAxis = tilesPerAxis,
             tileSize = TILE,
             maxCachedTiles = TILE_CACHE_SIZE,
             tileLoader =
@@ -98,6 +99,38 @@ constructor(
   }
 
   /**
+   * Warms the on-disk tile cache by downloading every source tile concurrently
+   * (bounded by [MAX_PARALLEL_TILE_DOWNLOADS]) before the faces are sampled.
+   * Best-effort: a tile that fails here is simply re-attempted lazily when a
+   * sample first needs it, so this only removes the fully-serialized latency of
+   * the pull-based path.
+   */
+  private suspend fun prefetchTiles(
+    tileDirectory: File,
+    tilesPerAxis: Int,
+    apiKey: String
+  ) {
+    coroutineScope {
+      val downloadLimit = Semaphore(MAX_PARALLEL_TILE_DOWNLOADS)
+      for (tileY: Int in 0 until tilesPerAxis) {
+        for (tileX: Int in 0 until tilesPerAxis) {
+          launch {
+            downloadLimit.withPermit {
+              val file: File = tileFile(tileDirectory, tileX, tileY)
+              if (file.exists()) {
+                return@withPermit
+              }
+              val values: ByteArray =
+                downloadCloudTileValues(apiKey, tileX, tileY) ?: return@withPermit
+              writeTileFile(file, values)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Downloads one mercator tile on demand and converts it to raw grayscale tile
    * data. [TiledCloudSource] persists successful loads so later samples reuse
    * disk/cache instead of hitting the network again.
@@ -107,13 +140,16 @@ constructor(
     x: Int,
     y: Int
   ): ByteArray? {
-    val tilePixels: IntArray = IntArray(TILE * TILE)
+    val rowPixels: IntArray = IntArray(TILE)
     val tileValues: ByteArray = ByteArray(TILE * TILE)
     val tile: Bitmap = downloadTile(SRC_ZOOM, x, y, apiKey) ?: return null
     try {
-      tile.getPixels(tilePixels, 0, TILE, 0, 0, TILE, TILE)
-      for (pixelIndex in tilePixels.indices) {
-        tileValues[pixelIndex] = getCloudValue(tilePixels[pixelIndex]).toByte()
+      for (row: Int in 0 until TILE) {
+        tile.getPixels(rowPixels, 0, TILE, 0, row, TILE, 1)
+        val rowOffset: Int = row * TILE
+        for (col: Int in 0 until TILE) {
+          tileValues[rowOffset + col] = getCloudValue(rowPixels[col]).toByte()
+        }
       }
       return tileValues
     } finally {
@@ -133,8 +169,9 @@ constructor(
         .Builder()
         .url(url)
         .build()
-    // A whole-world z=5 fetch is ~1024 tiles; a single transient failure (429,
-    // timeout) must not abort the batch, so retry with a short backoff.
+    // A whole-world z=3 fetch is 64 tiles (prefetched concurrently); a single
+    // transient failure (429, timeout) must not abort the batch, so retry with a
+    // short backoff.
     for (attempt in 0 until TILE_ATTEMPTS) {
       try {
         httpClient
@@ -142,7 +179,10 @@ constructor(
           .execute()
           .use downloadResponse@{ response: Response ->
             if (!response.isSuccessful) {
-              Console.warn(TAG, "Tile $z/$x/$y -> HTTP ${response.code} (attempt ${attempt + 1})")
+              Log.w(
+                TAG,
+                "Tile $z/$x/$y -> HTTP ${response.code} (attempt ${attempt + 1})"
+              )
               return@downloadResponse
             }
             val bitmap: Bitmap? =
@@ -291,7 +331,7 @@ constructor(
       dy /= len
       dz /= len
       val latDeg: Double = Math.toDegrees(asin(max(-1.0, min(1.0, dy))))
-      var lonDeg = Math.toDegrees(atan2(dx, dz)) + LON_OFFSET_DEG
+      var lonDeg = Math.toDegrees(atan2(dx, dz))
       lonDeg = ((lonDeg + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
       val sampledCloud: Int = sampleMercator(source, latDeg, lonDeg) ?: return null
       row[px] = sampledCloud.toByte()
@@ -415,18 +455,7 @@ constructor(
     private fun writeTile(
       file: File,
       values: ByteArray
-    ): Boolean {
-      return try {
-        FileOutputStream(file).use writeTile@{ outputStream: FileOutputStream ->
-          outputStream.write(values)
-          return@writeTile
-        }
-        true
-      } catch (e: Exception) {
-        Log.e(TAG, "Failed writing cloud tile ${file.name}", e)
-        false
-      }
-    }
+    ): Boolean = writeTileFile(file, values)
 
     private fun tileKey(
       x: Int,
@@ -452,7 +481,7 @@ constructor(
     private const val TILE_CACHE_SIZE: Int = 32
     private const val TILE_CACHE_DIRECTORY: String = "openweather_cloud_tiles"
     private const val MERC_LAT_LIMIT: Double = 85.05112878
-    private const val LON_OFFSET_DEG: Double = 0.0
+    private const val MAX_PARALLEL_TILE_DOWNLOADS: Int = 6
     private const val RAW_FACE_VERSION: String = "-shape-v2"
     private const val RAW_FACE_EXTENSION: String = ".r8"
     private const val TEMP_RAW_FACE_EXTENSION: String = ".tmp"
@@ -480,6 +509,20 @@ constructor(
       x: Int,
       y: Int
     ): File = File(directory, "$x-$y.raw")
+
+    private fun writeTileFile(
+      file: File,
+      values: ByteArray
+    ): Boolean =
+      try {
+        FileOutputStream(file).use { outputStream: FileOutputStream ->
+          outputStream.write(values)
+        }
+        true
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed writing cloud tile ${file.name}", e)
+        false
+      }
 
     private fun resetTileDirectory(directory: File): Boolean {
       if (directory.exists() && !directory.deleteRecursively()) {

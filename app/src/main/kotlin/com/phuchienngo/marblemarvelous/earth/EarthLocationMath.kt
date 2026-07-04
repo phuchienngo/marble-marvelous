@@ -34,23 +34,6 @@ object EarthLocationMath {
     return rotateAroundY(surface, earthRotationDegrees)
   }
 
-  fun daylightFactor(
-    longitudeDegrees: Float,
-    latitudeDegrees: Float,
-    utcDayRatio: Float,
-    sunDeclinationDegrees: Float
-  ): Float {
-    val surface: Vec3 =
-      locationSurface(
-        longitudeDegrees = longitudeDegrees,
-        latitudeDegrees = latitudeDegrees,
-        radius = UNIT_RADIUS,
-        earthRotationDegrees = FULL_ROTATION_DEGREES * utcDayRatio
-      ).normalized()
-    val light: Vec3 = sunLightPosition(sunDeclinationDegrees).normalized()
-    return surface.dot(light)
-  }
-
   private fun rotateAroundY(
     vector: Vec3,
     degrees: Float
@@ -66,9 +49,7 @@ object EarthLocationMath {
   }
 
   private const val AXIAL_TILT: Double = -23.439281463623047
-  private const val FULL_ROTATION_DEGREES: Float = 360.0f
   private const val SOLAR_YEAR_RADIANS_PER_DAY: Double = 0.01721420632103996
   private const val SOLSTICE_OFFSET_DAYS: Int = 10
-  private const val UNIT_RADIUS: Float = 1.0f
   private val INITIAL_LIGHT_POSITION: Vec3 = Vec3(0.0f, 0.0f, -1.0f)
 }

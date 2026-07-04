@@ -68,9 +68,9 @@ Gradle application id and namespace: `com.phuchienngo.marblemarvelous`.
 - `filament/FilamentWallpaperService.kt` hosts the live wallpaper service.
 - `filament/FilamentEarthRenderer.kt` owns the Filament engine, Vulkan backend,
   swapchain, camera, scene, and frame rendering.
-- `filament/FilamentEarthMaterial.kt` builds the unlit Filament material used
-  for day/night lighting, atmosphere, specular ocean, cloud color, and cloud
-  shadow.
+- `app/src/main/materials/*.mat` holds the Filament material sources, and
+  `app/src/main/assets/filament/*.filamat` holds the precompiled Vulkan mobile
+  material packages loaded by the renderer.
 - `filament/FilamentKtxCubeTextureArrayLoader.kt` uploads compressed KTX cube
   faces as six-layer texture arrays for the Vulkan renderer.
 - `filament/FilamentG3dbEarthMesh.kt` parses the bundled Earth mesh directly
@@ -127,3 +127,17 @@ OpenWeather API key:
 ## Native Libraries
 
 The APK ships only the native libraries pulled by Filament for `arm64-v8a`.
+Materials are precompiled with Filament `matc`, so the runtime APK does not
+include `filamat-android`.
+
+Regenerate the precompiled materials after editing any `app/src/main/materials`
+source with:
+
+```
+./gradlew :app:compileFilamentMaterials -Pfilament.matc=/path/to/matc
+```
+
+This rewrites the `.filamat` assets and the recorded source checksums. The
+`FilamentMaterialSourceChecksumTest` unit test fails if a material source is
+changed without regenerating its `.filamat`, so the drift is caught in CI even
+though `matc` runs manually.

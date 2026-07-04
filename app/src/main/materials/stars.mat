@@ -1,0 +1,48 @@
+material {
+  name : FilamentStars,
+  shadingModel : unlit,
+  requires : [
+    color,
+    custom0
+  ],
+  variables : [
+    { name : twinkle }
+  ],
+  parameters : [
+    { type : float, name : time }
+  ],
+  blending : transparent,
+  culling : none,
+  depthWrite : false,
+  depthCulling : true,
+  variantFilter : [
+    directionalLighting,
+    dynamicLighting,
+    shadowReceiver,
+    skinning,
+    fog,
+    vsm,
+    ssr,
+    stereo
+  ]
+}
+
+vertex {
+  void materialVertex(inout MaterialVertexInputs material) {
+    material.twinkle = getCustom0();
+  }
+}
+
+fragment {
+  void material(inout MaterialInputs material) {
+    prepareMaterial(material);
+    // custom0 carries per-star twinkle: x=phase, y=speed, z=amount.
+    float phase = variable_twinkle.x;
+    float speed = variable_twinkle.y;
+    float amount = variable_twinkle.z;
+    float wave = 0.5 + 0.5 * sin(materialParams.time * speed + phase);
+    float shaped = pow(wave, 2.2);
+    float factor = (1.0 - amount) + amount * shaped;
+    material.baseColor = getColor() * factor;
+  }
+}

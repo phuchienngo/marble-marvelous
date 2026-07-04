@@ -53,7 +53,7 @@ class FilamentWallpaperService : WallpaperService() {
     override fun onSurfaceCreated(holder: SurfaceHolder) {
       super.onSurfaceCreated(holder)
       isSurfaceReady = true
-      createRendererIfNeeded(holder)
+      attachSurface(holder)
     }
 
     override fun onSurfaceChanged(
@@ -64,7 +64,7 @@ class FilamentWallpaperService : WallpaperService() {
     ) {
       super.onSurfaceChanged(holder, format, width, height)
       isSurfaceReady = true
-      val currentRenderer: FilamentEarthRenderer = createRendererIfNeeded(holder) ?: return
+      val currentRenderer: FilamentEarthRenderer = attachSurface(holder) ?: return
       currentRenderer.resize(width, height)
       setSurfaceFrameRate(holder.surface, TARGET_FPS.toFloat())
       renderOnce()
@@ -80,7 +80,10 @@ class FilamentWallpaperService : WallpaperService() {
       isSurfaceReady = false
       stopFrameLoop()
       clearSurfaceFrameRate(holder.surface)
-      destroyRenderer()
+      // Keep the Filament engine (and its textures/meshes) alive across surface
+      // loss; only the surface-bound swap chain is released here so a later
+      // onSurfaceCreated can reattach without reloading assets.
+      detachSurface()
       super.onSurfaceDestroyed(holder)
     }
 
@@ -114,21 +117,14 @@ class FilamentWallpaperService : WallpaperService() {
       updateFrameLoop()
     }
 
-    private fun createRendererIfNeeded(holder: SurfaceHolder): FilamentEarthRenderer? {
+    private fun ensureRenderer(): FilamentEarthRenderer? {
       val existingRenderer: FilamentEarthRenderer? = renderer
       if (existingRenderer != null) {
         return existingRenderer
       }
-
-      val surface: Surface = holder.surface
-      if (!surface.isValid) {
-        return null
-      }
-
       return try {
         FilamentEarthRenderer(
           context = applicationContext,
-          surface = surface,
           isPreview = isPreview
         )
           .also { newRenderer ->
@@ -139,6 +135,31 @@ class FilamentWallpaperService : WallpaperService() {
       } catch (throwable: Throwable) {
         Log.e(TAG, "Failed to create Filament renderer", throwable)
         null
+      }
+    }
+
+    private fun attachSurface(holder: SurfaceHolder): FilamentEarthRenderer? {
+      val surface: Surface = holder.surface
+      if (!surface.isValid) {
+        return null
+      }
+      val currentRenderer: FilamentEarthRenderer = ensureRenderer() ?: return null
+      return try {
+        currentRenderer.attachSurface(surface)
+        currentRenderer.setPaused(!isVisible)
+        currentRenderer
+      } catch (throwable: Throwable) {
+        Log.e(TAG, "Failed to attach surface to Filament renderer", throwable)
+        null
+      }
+    }
+
+    private fun detachSurface() {
+      val currentRenderer: FilamentEarthRenderer = renderer ?: return
+      try {
+        currentRenderer.detachSurface()
+      } catch (throwable: Throwable) {
+        Log.e(TAG, "Failed to detach surface from Filament renderer", throwable)
       }
     }
 

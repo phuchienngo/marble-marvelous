@@ -1,5 +1,6 @@
 package com.phuchienngo.marblemarvelous.filament
 
+import android.content.Context
 import com.google.android.filament.Box
 import com.google.android.filament.Engine
 import com.google.android.filament.EntityManager
@@ -8,7 +9,6 @@ import com.google.android.filament.Material
 import com.google.android.filament.MaterialInstance
 import com.google.android.filament.RenderableManager
 import com.google.android.filament.VertexBuffer
-import com.google.android.filament.filamat.MaterialBuilder
 import com.phuchienngo.marblemarvelous.math.Vec3
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -25,6 +25,20 @@ internal class FilamentStars private constructor(
   private val indexBuffer: IndexBuffer,
   private val seeds: List<StarSeed>
 ) {
+  // Interleaved position + color + custom0 (twinkle params) vertex data. Rebuilt
+  // only when the camera changes; the twinkle itself runs in the shader.
+  private val vertices: FloatArray =
+    FloatArray(STAR_COUNT * VERTICES_PER_STAR * FLOATS_PER_VERTEX)
+  private val uploadBuffer: FloatBuffer =
+    ByteBuffer
+      .allocateDirect(vertices.size * FLOAT_BYTES)
+      .order(ByteOrder.nativeOrder())
+      .asFloatBuffer()
+
+  /**
+   * Rebuilds the camera-facing star quads (position + base color + per-star
+   * twinkle params) and uploads them. Only needed when the camera changes.
+   */
   fun update(
     engine: Engine,
     cameraPosition: Vec3,
@@ -44,7 +58,6 @@ internal class FilamentStars private constructor(
       (tan(Math.toRadians((verticalFovDegrees * 0.5f).toDouble())) * distance).toFloat()
     val halfWidth: Float = halfHeight * aspectRatio
     val center: Vec3 = cameraPosition.add(forward.scale(distance))
-    val vertices = FloatArray(STAR_COUNT * VERTICES_PER_STAR * FLOATS_PER_VERTEX)
     var offset = 0
     for (seed in seeds) {
       val starCenter: Vec3 =
@@ -52,18 +65,23 @@ internal class FilamentStars private constructor(
           .add(right.scale(seed.x * halfWidth * STAR_PLANE_FILL))
           .add(up.scale(seed.y * halfHeight * STAR_PLANE_FILL))
       val size: Float = seed.size
-      val color = floatArrayOf(
-        seed.brightness,
-        seed.brightness,
-        seed.brightness,
-        seed.opacity
-      )
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(-size)), color)
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(-size)), color)
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(size)), color)
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(size)), color)
+      offset = writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(-size)), seed)
+      offset = writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(-size)), seed)
+      offset = writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(size)), seed)
+      offset = writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(size)), seed)
     }
-    vertexBuffer.setBufferAt(engine, VERTEX_BUFFER_INDEX, directFloatBuffer(vertices))
+    uploadBuffer.clear()
+    uploadBuffer.put(vertices)
+    uploadBuffer.flip()
+    vertexBuffer.setBufferAt(engine, VERTEX_BUFFER_INDEX, uploadBuffer)
+  }
+
+  /**
+   * Advances the shader twinkle animation. Cheap: sets a single float uniform,
+   * no vertex upload. Call once per rendered frame.
+   */
+  fun setTime(elapsedSeconds: Float) {
+    materialInstance.setParameter(TIME_PARAM, elapsedSeconds)
   }
 
   fun destroy(
@@ -83,15 +101,19 @@ internal class FilamentStars private constructor(
     val y: Float,
     val size: Float,
     val brightness: Float,
-    val opacity: Float
+    val opacity: Float,
+    val twinklePhase: Float,
+    val twinkleSpeed: Float,
+    val twinkleAmount: Float
   )
 
   companion object {
     fun create(
+      context: Context,
       engine: Engine,
       entityManager: EntityManager
     ): FilamentStars {
-      val material: Material = createMaterial(engine)
+      val material: Material = createMaterial(context, engine)
       val materialInstance: MaterialInstance = material.createInstance()
       val vertexBuffer: VertexBuffer =
         VertexBuffer
@@ -110,6 +132,13 @@ internal class FilamentStars private constructor(
             VERTEX_BUFFER_INDEX,
             VertexBuffer.AttributeType.FLOAT4,
             COLOR_OFFSET_BYTES,
+            VERTEX_STRIDE_BYTES
+          )
+          .attribute(
+            VertexBuffer.VertexAttribute.CUSTOM0,
+            VERTEX_BUFFER_INDEX,
+            VertexBuffer.AttributeType.FLOAT4,
+            CUSTOM0_OFFSET_BYTES,
             VERTEX_STRIDE_BYTES
           )
           .build(engine)
@@ -147,38 +176,10 @@ internal class FilamentStars private constructor(
       )
     }
 
-    private fun createMaterial(engine: Engine): Material {
-      FilamentRuntime.initialize()
-      val materialPackage =
-        MaterialBuilder()
-          .name(MATERIAL_NAME)
-          .shading(MaterialBuilder.Shading.UNLIT)
-          .require(MaterialBuilder.VertexAttribute.COLOR)
-          .blending(MaterialBuilder.BlendingMode.TRANSPARENT)
-          .culling(MaterialBuilder.CullingMode.NONE)
-          .depthWrite(false)
-          .depthCulling(true)
-          .targetApi(MaterialBuilder.TargetApi.VULKAN)
-          .platform(MaterialBuilder.Platform.MOBILE)
-          .optimization(MaterialBuilder.Optimization.PERFORMANCE)
-          .material(
-            """
-            void material(inout MaterialInputs material) {
-              prepareMaterial(material);
-              material.baseColor = getColor();
-            }
-            """.trimIndent()
-          )
-          .build()
-      require(materialPackage.isValid) {
-        "Filament stars material package is invalid"
-      }
-      val payload = materialPackage.buffer
-      return Material
-        .Builder()
-        .payload(payload, payload.remaining())
-        .build(engine)
-    }
+    private fun createMaterial(
+      context: Context,
+      engine: Engine
+    ): Material = FilamentMaterialLoader.load(context, engine, MATERIAL_ASSET_PATH)
 
     private fun createSeeds(): List<StarSeed> {
       val random = Random(STAR_SEED)
@@ -191,7 +192,10 @@ internal class FilamentStars private constructor(
             y = random.nextFloat() * 2.0f - 1.0f,
             size = STAR_MIN_SIZE + random.nextFloat() * (STAR_MAX_SIZE - STAR_MIN_SIZE),
             brightness = STAR_MIN_BRIGHTNESS + random.nextFloat() * (STAR_MAX_BRIGHTNESS - STAR_MIN_BRIGHTNESS),
-            opacity = STAR_MIN_OPACITY + random.nextFloat() * (STAR_MAX_OPACITY - STAR_MIN_OPACITY)
+            opacity = STAR_MIN_OPACITY + random.nextFloat() * (STAR_MAX_OPACITY - STAR_MIN_OPACITY),
+            twinklePhase = random.nextFloat() * TWO_PI,
+            twinkleSpeed = TWINKLE_SPEED_MIN + random.nextFloat() * (TWINKLE_SPEED_MAX - TWINKLE_SPEED_MIN),
+            twinkleAmount = TWINKLE_AMOUNT_MIN + random.nextFloat() * (TWINKLE_AMOUNT_MAX - TWINKLE_AMOUNT_MIN)
           )
         )
         starIndex++
@@ -218,28 +222,20 @@ internal class FilamentStars private constructor(
       vertices: FloatArray,
       startOffset: Int,
       position: Vec3,
-      color: FloatArray
+      seed: StarSeed
     ): Int {
-      var offset = startOffset
-      vertices[offset++] = position.x
-      vertices[offset++] = position.y
-      vertices[offset++] = position.z
-      vertices[offset++] = color[0]
-      vertices[offset++] = color[1]
-      vertices[offset++] = color[2]
-      vertices[offset++] = color[3]
-      return offset
-    }
-
-    private fun directFloatBuffer(values: FloatArray): FloatBuffer {
-      val buffer: FloatBuffer =
-        ByteBuffer
-          .allocateDirect(values.size * FLOAT_BYTES)
-          .order(ByteOrder.nativeOrder())
-          .asFloatBuffer()
-      buffer.put(values)
-      buffer.flip()
-      return buffer
+      vertices[startOffset] = position.x
+      vertices[startOffset + 1] = position.y
+      vertices[startOffset + 2] = position.z
+      vertices[startOffset + 3] = seed.brightness
+      vertices[startOffset + 4] = seed.brightness
+      vertices[startOffset + 5] = seed.brightness
+      vertices[startOffset + 6] = seed.opacity
+      vertices[startOffset + 7] = seed.twinklePhase
+      vertices[startOffset + 8] = seed.twinkleSpeed
+      vertices[startOffset + 9] = seed.twinkleAmount
+      vertices[startOffset + 10] = 0.0f
+      return startOffset + FLOATS_PER_VERTEX
     }
 
     private fun directShortBuffer(values: ShortArray): ShortBuffer {
@@ -254,10 +250,11 @@ internal class FilamentStars private constructor(
     }
 
     private const val COLOR_OFFSET_BYTES: Int = 12
+    private const val CUSTOM0_OFFSET_BYTES: Int = 28
     private const val FLOAT_BYTES: Int = 4
-    private const val FLOATS_PER_VERTEX: Int = 7
+    private const val FLOATS_PER_VERTEX: Int = 11
     private const val INDICES_PER_STAR: Int = 6
-    private const val MATERIAL_NAME: String = "FilamentStars"
+    const val MATERIAL_ASSET_PATH: String = "filament/stars.filamat"
     private const val POSITION_OFFSET_BYTES: Int = 0
     private const val PRIMITIVE_INDEX: Int = 0
     private const val RENDERABLE_COUNT: Int = 1
@@ -272,6 +269,16 @@ internal class FilamentStars private constructor(
     private const val STAR_PLANE_DISTANCE: Float = 18.0f
     private const val STAR_PLANE_FILL: Float = 0.96f
     private const val STAR_SEED: Int = 1701
+    private const val TIME_PARAM: String = "time"
+    private const val TWO_PI: Float = 6.2831855f
+
+    // Twinkle params fed to the shader per star (custom0). Speed sets how fast
+    // each star cycles; amount sets how deeply it dims (1.0 = fully off at the
+    // trough). The dim/flash sharpness lives in stars.mat.
+    private const val TWINKLE_SPEED_MIN: Float = 0.4f
+    private const val TWINKLE_SPEED_MAX: Float = 2.1f
+    private const val TWINKLE_AMOUNT_MIN: Float = 0.35f
+    private const val TWINKLE_AMOUNT_MAX: Float = 1.0f
     private const val VERTEX_BUFFER_COUNT: Int = 1
     private const val VERTEX_BUFFER_INDEX: Int = 0
     private const val VERTEX_STRIDE_BYTES: Int = FLOATS_PER_VERTEX * FLOAT_BYTES

@@ -42,13 +42,11 @@ constructor(
     if (location != null) {
       val lat: Float = location.latitude.toFloat()
       val lng: Float = location.longitude.toFloat()
-      val editor: SharedPreferences.Editor = preferences.edit()
-      editor.putFloat(PREF_LAST_LNG, lng)
-      editor.putFloat(PREF_LAST_LAT, lat)
-      val committed: Boolean = editor.commit()
-      if (!committed) {
-        Log.w(TAG, "Couldn't save last known location")
-      }
+      preferences
+        .edit()
+        .putFloat(PREF_LAST_LNG, lng)
+        .putFloat(PREF_LAST_LAT, lat)
+        .apply()
       return GeoLocation(
         longitudeDegrees = lng,
         latitudeDegrees = lat
@@ -113,6 +111,10 @@ constructor(
     if (key == "location") {
       permissionsAccepted = true
     }
+  }
+
+  fun dispose() {
+    locationPermissions.dispose()
   }
 
   private fun getSharedPreferences() =

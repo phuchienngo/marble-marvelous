@@ -6,6 +6,7 @@ import com.google.android.filament.MaterialInstance
 import com.google.android.filament.Texture
 import com.google.android.filament.TextureSampler
 import java.io.File
+import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Calendar
@@ -15,9 +16,7 @@ internal class FilamentEarthTextures private constructor(
   private val nightMap: Texture,
   private var cloudMaskMap: Texture,
   private val cloudDetailMap: Texture,
-  private val sampler: TextureSampler,
-  private val retainedUploadBuffers: List<ByteBuffer>,
-  private var rawCloudUploadBuffer: ByteBuffer?
+  private val sampler: TextureSampler
 ) {
   fun bind(materialInstance: MaterialInstance) {
     materialInstance.setParameter(FilamentEarthMaterial.DAY_MAP, dayMap, sampler)
@@ -33,8 +32,6 @@ internal class FilamentEarthTextures private constructor(
       engine.destroyTexture(cloudMaskMap)
     }
     engine.destroyTexture(cloudDetailMap)
-    retainedUploadBuffers.forEach { uploadBuffer -> uploadBuffer.clear() }
-    rawCloudUploadBuffer?.clear()
   }
 
   fun reloadCloudMask(
@@ -42,18 +39,25 @@ internal class FilamentEarthTextures private constructor(
     engine: Engine,
     materialInstance: MaterialInstance
   ): Boolean {
-    val rawCloudTexture: RawCloudTexture = loadCachedCloudMask(context, engine) ?: return false
+    val rawCloudTexture: RawCloudTexture =
+      loadCachedCloudMask(context, engine) ?: return false
     val previousCloudMaskMap: Texture = cloudMaskMap
-    val previousRawCloudUploadBuffer: ByteBuffer? = rawCloudUploadBuffer
 
+    try {
+      materialInstance.setParameter(
+        FilamentEarthMaterial.CLOUD_MASK_MAP,
+        rawCloudTexture.texture,
+        sampler
+      )
+    } catch (throwable: Throwable) {
+      engine.destroyTexture(rawCloudTexture.texture)
+      throw throwable
+    }
     cloudMaskMap = rawCloudTexture.texture
-    rawCloudUploadBuffer = rawCloudTexture.uploadBuffer
-    materialInstance.setParameter(FilamentEarthMaterial.CLOUD_MASK_MAP, cloudMaskMap, sampler)
 
     if (previousCloudMaskMap !== cloudDetailMap) {
       engine.destroyTexture(previousCloudMaskMap)
     }
-    previousRawCloudUploadBuffer?.clear()
     return true
   }
 
@@ -64,44 +68,37 @@ internal class FilamentEarthTextures private constructor(
     ): FilamentEarthTextures {
       FilamentRuntime.initialize()
       val month: Int = Calendar.getInstance().get(Calendar.MONTH) + 1
-      val dayMap: LoadedKtxTexture =
+      val dayMap: Texture =
         loadKtxTexture(
           context = context,
           engine = engine,
           assetPath = FilamentEarthAssetPaths.dayMapForMonth(month)
         )
-      val nightMap: LoadedKtxTexture =
+      val nightMap: Texture =
         loadKtxTexture(
           context = context,
           engine = engine,
           assetPath = FilamentEarthAssetPaths.NIGHT_MAP
         )
-      val cloudDetailMap: LoadedKtxTexture =
+      val cloudDetailMap: Texture =
         loadKtxTexture(
           context = context,
           engine = engine,
           assetPath = FilamentEarthAssetPaths.CLOUD_DETAIL_MAP
         )
       val rawCloudTexture: RawCloudTexture? = loadCachedCloudMask(context, engine)
-      val cloudMaskMap: Texture = rawCloudTexture?.texture ?: cloudDetailMap.texture
+      val cloudMaskMap: Texture = rawCloudTexture?.texture ?: cloudDetailMap
       return FilamentEarthTextures(
-        dayMap = dayMap.texture,
-        nightMap = nightMap.texture,
+        dayMap = dayMap,
+        nightMap = nightMap,
         cloudMaskMap = cloudMaskMap,
-        cloudDetailMap = cloudDetailMap.texture,
+        cloudDetailMap = cloudDetailMap,
         sampler =
           TextureSampler(
             TextureSampler.MinFilter.LINEAR,
             TextureSampler.MagFilter.LINEAR,
             TextureSampler.WrapMode.CLAMP_TO_EDGE
-          ),
-        retainedUploadBuffers =
-          listOf(
-            dayMap.uploadBuffer,
-            nightMap.uploadBuffer,
-            cloudDetailMap.uploadBuffer
-          ),
-        rawCloudUploadBuffer = rawCloudTexture?.uploadBuffer
+          )
       )
     }
 
@@ -109,29 +106,9 @@ internal class FilamentEarthTextures private constructor(
       context: Context,
       engine: Engine,
       assetPath: String
-    ): LoadedKtxTexture {
-      val uploadBuffer: ByteBuffer = readAssetDirectBuffer(context, assetPath)
-      return LoadedKtxTexture(
-        texture = FilamentKtxCubeTextureArrayLoader.createTexture(engine, uploadBuffer),
-        uploadBuffer = uploadBuffer
-      )
-    }
-
-    private fun readAssetDirectBuffer(
-      context: Context,
-      assetPath: String
-    ): ByteBuffer {
-      val bytes: ByteArray =
-        context.assets.open(assetPath).use readAsset@{ inputStream ->
-          return@readAsset inputStream.readBytes()
-        }
-      val buffer: ByteBuffer =
-        ByteBuffer
-          .allocateDirect(bytes.size)
-          .order(ByteOrder.nativeOrder())
-      buffer.put(bytes)
-      buffer.flip()
-      return buffer
+    ): Texture {
+      val uploadBuffer: ByteBuffer = FilamentDirectBuffers.fromAsset(context, assetPath)
+      return FilamentKtxCubeTextureArrayLoader.createTexture(engine, uploadBuffer)
     }
 
     private fun loadCachedCloudMask(
@@ -156,7 +133,7 @@ internal class FilamentEarthTextures private constructor(
           .allocateDirect(FACE_NAMES.size * FACE_SIZE * FACE_SIZE)
           .order(ByteOrder.nativeOrder())
       for (file: File in rawFaces) {
-        uploadBuffer.put(file.readBytes())
+        readFileInto(file, uploadBuffer)
       }
       uploadBuffer.flip()
 
@@ -172,7 +149,19 @@ internal class FilamentEarthTextures private constructor(
           .levels(1)
           .build(engine)
       texture.setTextureArrayImage(engine, uploadBuffer)
-      return RawCloudTexture(texture, uploadBuffer)
+      return RawCloudTexture(texture)
+    }
+
+    private fun readFileInto(
+      file: File,
+      buffer: ByteBuffer
+    ) {
+      FileInputStream(file).use { inputStream ->
+        val channel = inputStream.channel
+        while (buffer.hasRemaining() && channel.read(buffer) >= 0) {
+          // Streams the face straight into the direct buffer.
+        }
+      }
     }
 
     private fun isReadableRawFace(file: File): Boolean =
@@ -185,6 +174,16 @@ internal class FilamentEarthTextures private constructor(
       engine: Engine,
       uploadBuffer: ByteBuffer
     ) {
+      val descriptor =
+        Texture.PixelBufferDescriptor(
+          uploadBuffer,
+          Texture.Format.R,
+          Texture.Type.UBYTE,
+          1
+        )
+      // See FilamentUploadBuffers: the callback lets Filament release the upload
+      // buffer once the async GPU upload finishes.
+      descriptor.setCallback(null, FilamentUploadBuffers.RELEASE_AFTER_UPLOAD)
       setImage(
         engine,
         Texture.BASE_LEVEL,
@@ -194,23 +193,12 @@ internal class FilamentEarthTextures private constructor(
         FACE_SIZE,
         FACE_SIZE,
         FACE_NAMES.size,
-        Texture.PixelBufferDescriptor(
-          uploadBuffer,
-          Texture.Format.R,
-          Texture.Type.UBYTE,
-          1
-        )
+        descriptor
       )
     }
 
     private data class RawCloudTexture(
-      val texture: Texture,
-      val uploadBuffer: ByteBuffer
-    )
-
-    private data class LoadedKtxTexture(
-      val texture: Texture,
-      val uploadBuffer: ByteBuffer
+      val texture: Texture
     )
 
     private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
