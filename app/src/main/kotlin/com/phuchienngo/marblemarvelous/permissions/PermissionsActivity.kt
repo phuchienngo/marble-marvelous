@@ -2,32 +2,25 @@ package com.phuchienngo.marblemarvelous.permissions
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Color
 import android.os.Bundle
+import android.util.TypedValue
+import android.view.Gravity
+import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.ManagedActivityResultLauncher
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.core.content.edit
 import com.phuchienngo.marblemarvelous.R
 
 class PermissionsActivity : ComponentActivity() {
   private var permissions: Array<String> = emptyArray()
   private var sharedPreferencesKey: String? = null
+  private val requestPermissions: ActivityResultLauncher<Array<String>> =
+    registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+      permissionResults: Map<String, Boolean> ->
+      onPermissionResult(permissionResults)
+    }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -41,14 +34,32 @@ class PermissionsActivity : ComponentActivity() {
       return
     }
 
-    setContent permissionContent@{
-      permissionRequestScreen(
-        permissions = permissions,
-        onPermissionResult = permissionRequestResult@{ permissionResults: Map<String, Boolean> ->
-          return@permissionRequestResult onPermissionResult(permissionResults)
-        }
+    setContentView(permissionRequestView())
+    requestPermissions.launch(permissions)
+  }
+
+  private fun permissionRequestView(): FrameLayout {
+    val padding: Int =
+      TypedValue
+        .applyDimension(TypedValue.COMPLEX_UNIT_DIP, PADDING_DP, resources.displayMetrics)
+        .toInt()
+    val message =
+      TextView(this).apply {
+        text = getString(R.string.permissions_request_message)
+        setTextColor(Color.WHITE)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, MESSAGE_TEXT_SP)
+      }
+    return FrameLayout(this).apply {
+      setBackgroundColor(SCRIM_COLOR)
+      setPadding(padding, padding, padding, padding)
+      addView(
+        message,
+        FrameLayout.LayoutParams(
+          FrameLayout.LayoutParams.WRAP_CONTENT,
+          FrameLayout.LayoutParams.WRAP_CONTENT,
+          Gravity.CENTER
+        )
       )
-      return@permissionContent
     }
   }
 
@@ -69,62 +80,18 @@ class PermissionsActivity : ComponentActivity() {
     val preferences: SharedPreferences =
       secureContext.getSharedPreferences(APP_PERMISSIONS, Context.MODE_PRIVATE)
     preferences
-      .edit savePermissionResult@{
-        putBoolean(preferenceKey, granted)
-          .putBoolean(preferenceKey + ASKED_PREFIX, PERMISSION_ASKED)
-        return@savePermissionResult
-      }
-  }
-
-  @Composable
-  private fun permissionRequestScreen(
-    permissions: Array<String>,
-    onPermissionResult: (Map<String, Boolean>) -> Unit
-  ) {
-    val launcher: ManagedActivityResultLauncher<Array<String>, Map<String, Boolean>> =
-      rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { permissionResults: Map<String, Boolean> ->
-          return@rememberLauncherForActivityResult onPermissionResult(permissionResults)
-        }
-      )
-    LaunchedEffect(Unit) launchPermissions@{
-      launcher.launch(permissions)
-      return@launchPermissions
-    }
-    permissionRequestContent()
-  }
-
-  @Composable
-  private fun permissionRequestContent() {
-    MaterialTheme(colorScheme = darkColorScheme()) permissionsTheme@{
-      Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Color(0xDD000000)
-      ) permissionsSurface@{
-        Box(
-          modifier =
-            Modifier
-              .fillMaxSize()
-              .padding(24.dp),
-          contentAlignment = Alignment.Center
-        ) permissionsBox@{
-          Text(
-            text = stringResource(R.string.permissions_request_message),
-            style = MaterialTheme.typography.bodyLarge,
-            color = Color.White
-          )
-          return@permissionsBox
-        }
-        return@permissionsSurface
-      }
-      return@permissionsTheme
-    }
+      .edit()
+      .putBoolean(preferenceKey, granted)
+      .putBoolean(preferenceKey + ASKED_PREFIX, PERMISSION_ASKED)
+      .apply()
   }
 
   private companion object {
     private const val APP_PERMISSIONS: String = "PERMISSIONS"
     private const val ASKED_PREFIX: String = "_ASKED"
     private const val PERMISSION_ASKED: Boolean = true
+    private const val PADDING_DP: Float = 24.0f
+    private const val MESSAGE_TEXT_SP: Float = 16.0f
+    private const val SCRIM_COLOR: Int = 0xDD000000.toInt()
   }
 }

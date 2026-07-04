@@ -4,7 +4,6 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
 
@@ -59,7 +58,6 @@ android {
 
     buildFeatures {
         buildConfig = false
-        compose = true
     }
 
     lint {
@@ -123,12 +121,8 @@ dependencies {
     val filamentVersion = "1.72.0"
     val okhttpVersion = "5.4.0"
 
-    // --- Jetpack Compose (small Android UI surfaces such as runtime-permission screens) ---
-    implementation(platform("androidx.compose:compose-bom:2026.06.01"))
-    implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui")
+    // --- AndroidX Activity for the runtime-permission screen (ActivityResult API). ---
+    implementation("androidx.activity:activity:1.13.0")
 
     // --- Filament renderer for direct live-wallpaper rendering. ---
     implementation("com.google.android.filament:filament-android:$filamentVersion")

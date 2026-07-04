@@ -1,8 +1,9 @@
 package com.phuchienngo.marblemarvelous.filament
 
+import android.os.Handler
+import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.util.Log
-import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
 import com.phuchienngo.marblemarvelous.MarbleApplication
@@ -32,15 +33,14 @@ class FilamentWallpaperService : WallpaperService() {
 
   override fun onCreateEngine(): Engine = FilamentWallpaperEngine()
 
-  private inner class FilamentWallpaperEngine :
-    Engine(),
-    Choreographer.FrameCallback {
+  private inner class FilamentWallpaperEngine : Engine() {
     private var renderer: FilamentEarthRenderer? = null
-    private var frameCallbackPosted = false
+    private val frameHandler: Handler = Handler(Looper.getMainLooper())
+    private val frameRunnable: Runnable = Runnable { onFrameTick() }
+    private var frameScheduled = false
     private var isDestroyed = false
     private var isSurfaceReady = false
     private var isVisible = false
-    private var lastRenderedFrameNanos = 0L
     private val cloudRefreshScope: CoroutineScope =
       CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var cloudRefreshJob: Job? = null
@@ -102,18 +102,12 @@ class FilamentWallpaperService : WallpaperService() {
       super.onDestroy()
     }
 
-    override fun doFrame(frameTimeNanos: Long) {
-      frameCallbackPosted = false
+    private fun onFrameTick() {
+      frameScheduled = false
       if (!canRender()) {
-        updateFrameLoop()
         return
       }
-
-      val frameElapsedNanos: Long = frameTimeNanos - lastRenderedFrameNanos
-      if (lastRenderedFrameNanos == 0L || frameElapsedNanos >= TARGET_FRAME_INTERVAL_NANOS) {
-        renderFrame(frameTimeNanos)
-        lastRenderedFrameNanos = frameTimeNanos
-      }
+      renderFrame(System.nanoTime())
       updateFrameLoop()
     }
 
@@ -219,24 +213,19 @@ class FilamentWallpaperService : WallpaperService() {
         stopFrameLoop()
         return
       }
-      if (frameCallbackPosted) {
+      if (frameScheduled) {
         return
       }
-      frameCallbackPosted = true
-      Choreographer
-        .getInstance()
-        .postFrameCallback(this)
+      frameScheduled = true
+      frameHandler.postDelayed(frameRunnable, FRAME_INTERVAL_MILLIS)
     }
 
     private fun stopFrameLoop() {
-      if (!frameCallbackPosted) {
+      if (!frameScheduled) {
         return
       }
-      Choreographer
-        .getInstance()
-        .removeFrameCallback(this)
-      frameCallbackPosted = false
-      lastRenderedFrameNanos = 0L
+      frameHandler.removeCallbacks(frameRunnable)
+      frameScheduled = false
     }
 
     private fun canRender(): Boolean =
@@ -272,9 +261,9 @@ class FilamentWallpaperService : WallpaperService() {
 
   companion object {
     private const val CLEAR_SURFACE_FRAME_RATE: Float = 0.0f
-    private const val NANOS_PER_SECOND: Long = 1_000_000_000L
+    private const val MILLIS_PER_SECOND: Long = 1000L
     private const val TAG: String = "FilamentWallpaper"
     private const val TARGET_FPS: Int = 18
-    private const val TARGET_FRAME_INTERVAL_NANOS: Long = NANOS_PER_SECOND / TARGET_FPS
+    private const val FRAME_INTERVAL_MILLIS: Long = MILLIS_PER_SECOND / TARGET_FPS
   }
 }
