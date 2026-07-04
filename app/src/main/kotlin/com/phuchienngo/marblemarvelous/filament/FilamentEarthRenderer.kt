@@ -152,6 +152,7 @@ internal class FilamentEarthRenderer(
         earthTextures.destroy(engine)
       }
       earthTextures.bind(materialInstance)
+      materialInstance.setParameter(FilamentEarthMaterial.AURORA_ACTIVITY, DEFAULT_AURORA_ACTIVITY)
 
       earthEntity = entityManager.create()
       cleanupStack.register {
@@ -277,6 +278,13 @@ internal class FilamentEarthRenderer(
     }
     renderer.render(view)
     renderer.endFrame()
+  }
+
+  fun setAuroraActivity(activity: Float) {
+    materialInstance.setParameter(
+      FilamentEarthMaterial.AURORA_ACTIVITY,
+      activity.coerceIn(0.0f, 1.0f)
+    )
   }
 
   fun reloadCloudMask(context: Context): Boolean =
@@ -505,6 +513,7 @@ internal class FilamentEarthRenderer(
     private const val CAMERA_FOV_DEGREES: Float = 20.0f
     private const val CAMERA_NEAR: Double = 0.1
     private const val DATE_SAMPLE_INTERVAL_MILLIS: Long = 1000L
+    private const val DEFAULT_AURORA_ACTIVITY: Float = 0.25f
     private const val EARTH_MODEL_ASSET: String = "earth/earth.g3db"
     private const val EARTH_SURFACE_RADIUS: Float = 0.6570345f
     private const val FLOAT_BYTES: Int = 4

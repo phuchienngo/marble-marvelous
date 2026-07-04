@@ -7,6 +7,7 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import com.phuchienngo.marblemarvelous.MarbleApplication
 import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
+import com.phuchienngo.marblemarvelous.space.AuroraActivityProvider
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -14,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,6 +26,9 @@ class FilamentWallpaperService : WallpaperService() {
   @Inject
   @field:OpenWeatherApiKey
   internal lateinit var openWeatherApiKey: String
+
+  @Inject
+  internal lateinit var auroraActivityProvider: AuroraActivityProvider
 
   override fun onCreate() {
     super.onCreate()
@@ -43,6 +48,7 @@ class FilamentWallpaperService : WallpaperService() {
     private val cloudRefreshScope: CoroutineScope =
       CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var cloudRefreshJob: Job? = null
+    private var auroraRefreshJob: Job? = null
 
     override fun onCreate(surfaceHolder: SurfaceHolder) {
       super.onCreate(surfaceHolder)
@@ -124,6 +130,7 @@ class FilamentWallpaperService : WallpaperService() {
             newRenderer.setPaused(!isVisible)
             renderer = newRenderer
             startCloudRefresh()
+            startAuroraRefresh()
           }
       } catch (throwable: Throwable) {
         Log.e(TAG, "Failed to create Filament renderer", throwable)
@@ -187,6 +194,32 @@ class FilamentWallpaperService : WallpaperService() {
             }
           } catch (throwable: Throwable) {
             Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
+          }
+        }
+    }
+
+    private fun startAuroraRefresh() {
+      if (auroraRefreshJob?.isActive == true) {
+        return
+      }
+      auroraRefreshJob =
+        cloudRefreshScope.launch {
+          while (true) {
+            val activity: Float? =
+              try {
+                auroraActivityProvider.currentActivity()
+              } catch (throwable: Throwable) {
+                if (throwable is CancellationException) {
+                  throw throwable
+                }
+                Log.e(TAG, "Failed to fetch aurora activity", throwable)
+                null
+              }
+            if (activity != null && !isDestroyed) {
+              renderer?.setAuroraActivity(activity)
+              renderOnce()
+            }
+            delay(AURORA_REFRESH_INTERVAL_MILLIS)
           }
         }
     }
@@ -265,6 +298,7 @@ class FilamentWallpaperService : WallpaperService() {
   }
 
   companion object {
+    private const val AURORA_REFRESH_INTERVAL_MILLIS: Long = 1_800_000L
     private const val CLEAR_SURFACE_FRAME_RATE: Float = 0.0f
     private const val MILLIS_PER_SECOND: Long = 1000L
     private const val TAG: String = "FilamentWallpaper"
