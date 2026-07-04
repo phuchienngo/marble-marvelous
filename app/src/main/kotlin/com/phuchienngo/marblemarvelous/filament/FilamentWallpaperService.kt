@@ -1,9 +1,8 @@
 package com.phuchienngo.marblemarvelous.filament
 
-import android.os.Handler
-import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.util.Log
+import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
 import com.phuchienngo.marblemarvelous.MarbleApplication
@@ -33,10 +32,10 @@ class FilamentWallpaperService : WallpaperService() {
 
   override fun onCreateEngine(): Engine = FilamentWallpaperEngine()
 
-  private inner class FilamentWallpaperEngine : Engine() {
+  private inner class FilamentWallpaperEngine :
+    Engine(),
+    Choreographer.FrameCallback {
     private var renderer: FilamentEarthRenderer? = null
-    private val frameHandler: Handler = Handler(Looper.getMainLooper())
-    private val frameRunnable: Runnable = Runnable { onFrameTick() }
     private var frameScheduled = false
     private var isDestroyed = false
     private var isSurfaceReady = false
@@ -102,12 +101,12 @@ class FilamentWallpaperService : WallpaperService() {
       super.onDestroy()
     }
 
-    private fun onFrameTick() {
+    override fun doFrame(frameTimeNanos: Long) {
       frameScheduled = false
       if (!canRender()) {
         return
       }
-      renderFrame(System.nanoTime())
+      renderFrame(frameTimeNanos)
       updateFrameLoop()
     }
 
@@ -217,14 +216,20 @@ class FilamentWallpaperService : WallpaperService() {
         return
       }
       frameScheduled = true
-      frameHandler.postDelayed(frameRunnable, FRAME_INTERVAL_MILLIS)
+      // First vsync after the delay: keeps the ~18 FPS cadence (few wake-ups)
+      // while still presenting aligned to the display refresh.
+      Choreographer
+        .getInstance()
+        .postFrameCallbackDelayed(this, FRAME_INTERVAL_MILLIS)
     }
 
     private fun stopFrameLoop() {
       if (!frameScheduled) {
         return
       }
-      frameHandler.removeCallbacks(frameRunnable)
+      Choreographer
+        .getInstance()
+        .removeFrameCallback(this)
       frameScheduled = false
     }
 
