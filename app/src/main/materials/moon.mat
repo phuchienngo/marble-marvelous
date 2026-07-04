@@ -1,0 +1,50 @@
+material {
+  name : FilamentMoon,
+  shadingModel : unlit,
+  requires : [
+    custom0
+  ],
+  variables : [
+    { name : discUv }
+  ],
+  parameters : [
+    { type : float3, name : moonLight }
+  ],
+  blending : transparent,
+  culling : none,
+  depthWrite : false,
+  depthCulling : true,
+  variantFilter : [
+    directionalLighting,
+    dynamicLighting,
+    shadowReceiver,
+    skinning,
+    fog,
+    vsm,
+    ssr,
+    stereo
+  ]
+}
+
+vertex {
+  void materialVertex(inout MaterialVertexInputs material) {
+    material.discUv = getCustom0();
+  }
+}
+
+fragment {
+  void material(inout MaterialInputs material) {
+    prepareMaterial(material);
+    // Reconstruct a sphere normal from the billboard disc coordinates (-1..1)
+    // and light it by moonLight (billboard space) so the lit fraction shows the
+    // real lunar phase. A faint floor keeps the dark limb barely visible.
+    float2 p = variable_discUv.xy;
+    float r = length(p);
+    float3 normal = float3(p.x, p.y, sqrt(clamp(1.0 - r * r, 0.0, 1.0)));
+    float lit = dot(normal, normalize(materialParams.moonLight));
+    float shade = 0.05 + 0.95 * smoothstep(-0.03, 0.08, lit);
+    float3 moonColor = float3(0.87, 0.86, 0.82) * shade;
+    float alpha = smoothstep(1.0, 0.90, r);
+    material.baseColor = float4(moonColor * alpha, alpha);
+  }
+}

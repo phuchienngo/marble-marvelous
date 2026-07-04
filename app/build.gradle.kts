@@ -14,7 +14,7 @@ if (localPropertiesFile.isFile) {
         localProperties.load(inputStream)
     }
 }
-val localOpenWeatherApiKey = localProperties.getProperty("OPENWEATHER_API_KEY", "")
+val localOpenWeatherApiKey: String = localProperties.getProperty("OPENWEATHER_API_KEY", "")
 val openWeatherApiKeyProvider = providers
     .gradleProperty("OPENWEATHER_API_KEY")
     .orElse(providers.environmentVariable("OPENWEATHER_API_KEY"))
@@ -136,6 +136,10 @@ dependencies {
 
     // --- OkHttp for OpenWeather cloud-tile downloads ---
     implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
+
+    // --- Astronomy: moon position/phase, and ISS orbit propagation (SGP4) ---
+    implementation("org.shredzone.commons:commons-suncalc:3.11")
+    implementation("com.github.davidmoten:predict4java:1.3.1")
 
     testImplementation("junit:junit:4.13.2")
 }

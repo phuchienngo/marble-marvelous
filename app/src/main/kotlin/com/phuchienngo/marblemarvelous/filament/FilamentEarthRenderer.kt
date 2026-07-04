@@ -22,6 +22,7 @@ import com.phuchienngo.marblemarvelous.earth.EarthLocationMath
 import com.phuchienngo.marblemarvelous.location.GeoLocation
 import com.phuchienngo.marblemarvelous.location.UserLocationEarth
 import com.phuchienngo.marblemarvelous.math.Vec3
+import com.phuchienngo.marblemarvelous.space.MoonPhase
 import com.phuchienngo.marblemarvelous.utils.DateUtils
 import com.phuchienngo.marblemarvelous.utils.FrustumUtils
 import java.nio.ByteBuffer
@@ -54,6 +55,7 @@ internal class FilamentEarthRenderer(
   private val vertexBuffer: VertexBuffer
   private val indexBuffer: IndexBuffer
   private val stars: FilamentStars
+  private val moon: FilamentMoon
   private val userLocation: UserLocationEarth
   private val skybox: Skybox
   private var cameraAspectRatio: Float = 1.0f
@@ -199,6 +201,15 @@ internal class FilamentEarthRenderer(
       cleanupStack.register {
         scene.removeEntity(stars.entity)
       }
+
+      moon = FilamentMoon.create(context, engine, entityManager)
+      cleanupStack.register {
+        moon.destroy(engine, entityManager)
+      }
+      scene.addEntity(moon.entity)
+      cleanupStack.register {
+        scene.removeEntity(moon.entity)
+      }
       cleanupStack.dismiss()
     } catch (throwable: Throwable) {
       cleanupStack.cleanUpFailure(throwable)
@@ -296,6 +307,8 @@ internal class FilamentEarthRenderer(
     scene.removeEntity(earthEntity)
     scene.removeEntity(stars.entity)
     stars.destroy(engine, entityManager)
+    scene.removeEntity(moon.entity)
+    moon.destroy(engine, entityManager)
     engine.destroyEntity(earthEntity)
     entityManager.destroy(earthEntity)
     engine.destroyVertexBuffer(vertexBuffer)
@@ -437,6 +450,13 @@ internal class FilamentEarthRenderer(
       aspectRatio = cameraAspectRatio,
       verticalFovDegrees = cameraVerticalFovDegrees
     )
+    moon.update(
+      engine = engine,
+      cameraPosition = cameraPosition,
+      cameraTarget = surface,
+      cameraUp = CAMERA_UP
+    )
+    moon.setPhaseLight(MoonPhase.billboardLight(now))
   }
 
   private fun addToVectorSpace(
