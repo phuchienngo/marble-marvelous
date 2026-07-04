@@ -226,32 +226,38 @@ fragment {
 
     // Aurora: an animated curtain around the auroral oval on the night side. The
     // oval sits near 66 deg latitude and expands toward the equator as activity
-    // (from the real planetary Kp index) rises.
-    float auroraLatitude = asin(clamp(lookup.y, -1.0, 1.0));
-    float auroraBandCenter = 1.22 - materialParams.auroraActivity * 0.28;
-    float auroraBand = exp(-pow((abs(auroraLatitude) - auroraBandCenter) / 0.16, 2.0));
+    // (from the real planetary Kp index) rises. Gated on the (cheap) night factor
+    // so the day hemisphere skips the transcendental band/shimmer math entirely.
     float auroraNight = smoothstep(0.06, -0.18, lightDirection);
-    float auroraLongitude = atan(lookup.x, lookup.z);
-    float auroraShimmer =
-      0.5 + 0.5 * sin(auroraLongitude * 8.0 + materialParams.time * 1.5)
-      + 0.3 * sin(auroraLongitude * 17.0 - materialParams.time * 0.9);
-    auroraShimmer = clamp(auroraShimmer, 0.0, 1.0);
-    float auroraAmount =
-      auroraBand * auroraNight * clamp(materialParams.auroraActivity, 0.0, 1.0) *
-      (0.35 + 0.65 * auroraShimmer);
-    float3 auroraColor =
-      mix(float3(0.15, 0.95, 0.45), float3(0.35, 0.55, 1.0), smoothstep(1.0, 1.35, abs(auroraLatitude)));
-    base += auroraColor * auroraAmount * 0.7;
+    if (auroraNight > 0.001) {
+      float auroraLatitude = asin(clamp(lookup.y, -1.0, 1.0));
+      float auroraBandCenter = 1.22 - materialParams.auroraActivity * 0.28;
+      float auroraBand = exp(-pow((abs(auroraLatitude) - auroraBandCenter) / 0.16, 2.0));
+      float auroraLongitude = atan(lookup.x, lookup.z);
+      float auroraShimmer =
+        0.5 + 0.5 * sin(auroraLongitude * 8.0 + materialParams.time * 1.5)
+        + 0.3 * sin(auroraLongitude * 17.0 - materialParams.time * 0.9);
+      auroraShimmer = clamp(auroraShimmer, 0.0, 1.0);
+      float auroraAmount =
+        auroraBand * auroraNight * clamp(materialParams.auroraActivity, 0.0, 1.0) *
+        (0.35 + 0.65 * auroraShimmer);
+      float3 auroraColor =
+        mix(float3(0.15, 0.95, 0.45), float3(0.35, 0.55, 1.0), smoothstep(1.0, 1.35, abs(auroraLatitude)));
+      base += auroraColor * auroraAmount * 0.7;
+    }
 
-    // "You are here" marker: a solid dot plus an expanding, fading sonar ping
-    // at the user's location (mesh-local direction). Only the visible hemisphere
-    // is rasterized, so it shows only when the location faces the camera.
-    float locationAngle = acos(clamp(dot(lookup, normalize(materialParams.userLocation)), -1.0, 1.0));
-    float ping = fract(materialParams.time * 0.5);
-    float pingRing = smoothstep(0.010, 0.0, abs(locationAngle - ping * 0.11)) * (1.0 - ping);
-    float markerCore = smoothstep(0.020, 0.006, locationAngle);
-    float marker = clamp(markerCore + pingRing, 0.0, 1.0);
-    base = mix(base, float3(0.25, 0.95, 1.0), marker * 0.9);
+    // "You are here" marker: a solid dot plus an expanding, fading sonar ping at
+    // the user's location (mesh-local direction). Gated on a cheap dot product so
+    // only fragments near the location run acos / the ping animation.
+    float locationDot = dot(lookup, normalize(materialParams.userLocation));
+    if (locationDot > 0.98) {
+      float locationAngle = acos(clamp(locationDot, -1.0, 1.0));
+      float ping = fract(materialParams.time * 0.5);
+      float pingRing = smoothstep(0.010, 0.0, abs(locationAngle - ping * 0.11)) * (1.0 - ping);
+      float markerCore = smoothstep(0.020, 0.006, locationAngle);
+      float marker = clamp(markerCore + pingRing, 0.0, 1.0);
+      base = mix(base, float3(0.25, 0.95, 1.0), marker * 0.9);
+    }
 
     material.baseColor = float4(clamp(base, 0.0, 1.0), 1.0);
   }

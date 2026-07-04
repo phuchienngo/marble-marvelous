@@ -71,7 +71,7 @@ internal object FilamentG3dbEarthMesh {
     val indices = ShortArray(indicesJson.size)
     for (indexOffset in 0 until indicesJson.size) {
       val index: Int = indicesJson.getInt(indexOffset)
-      require(index >= 0 && index < vertexCount) {
+      require(index in 0..<vertexCount) {
         "earth.g3db index is outside the vertex range"
       }
       indices[indexOffset] = index.toShort()
@@ -86,8 +86,7 @@ internal object FilamentG3dbEarthMesh {
     var normalOffset = MISSING_OFFSET
 
     for (attributeIndex in 0 until attributeArray.size) {
-      val attributeName: String = attributeArray.getString(attributeIndex)
-      when (attributeName) {
+      when (val attributeName: String = attributeArray.getString(attributeIndex)) {
         POSITION_ATTRIBUTE -> {
           positionOffset = strideFloats
           strideFloats += POSITION_ATTRIBUTE_FLOATS
@@ -323,7 +322,7 @@ internal object FilamentG3dbEarthMesh {
           readUnsignedByte()
         }
       val values = ArrayList<UbValue>(size)
-      for (index in 0 until size) {
+      repeat(size) {
         values.add(parseValue(dataType))
       }
       return UbArray(values)

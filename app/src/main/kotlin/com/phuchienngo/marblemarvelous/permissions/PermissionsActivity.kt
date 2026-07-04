@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import com.phuchienngo.marblemarvelous.R
+import androidx.core.content.edit
 
 class PermissionsActivity : ComponentActivity() {
   private var permissions: Array<String> = emptyArray()
@@ -80,10 +81,10 @@ class PermissionsActivity : ComponentActivity() {
     val preferences: SharedPreferences =
       secureContext.getSharedPreferences(APP_PERMISSIONS, Context.MODE_PRIVATE)
     preferences
-      .edit()
-      .putBoolean(preferenceKey, granted)
-      .putBoolean(preferenceKey + ASKED_PREFIX, PERMISSION_ASKED)
-      .apply()
+      .edit {
+        putBoolean(preferenceKey, granted)
+          .putBoolean(preferenceKey + ASKED_PREFIX, PERMISSION_ASKED)
+      }
   }
 
   private companion object {

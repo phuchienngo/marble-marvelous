@@ -27,4 +27,30 @@ internal data class FilamentEarthMeshData(
     const val LOOKUP_NORMAL_COMPONENTS: Int = 4
     const val POSITION_COMPONENTS: Int = 3
   }
+
+  override fun equals(other: Any?): Boolean {
+    if (this === other) return true
+    if (javaClass != other?.javaClass) return false
+
+    other as FilamentEarthMeshData
+
+    if (!positions.contentEquals(other.positions)) return false
+    if (!lookupNormals.contentEquals(other.lookupNormals)) return false
+    if (!indices.contentEquals(other.indices)) return false
+    if (vertexCount != other.vertexCount) return false
+    if (indexCount != other.indexCount) return false
+    if (boundingHalfExtent != other.boundingHalfExtent) return false
+
+    return true
+  }
+
+  override fun hashCode(): Int {
+    var result = positions.contentHashCode()
+    result = 31 * result + lookupNormals.contentHashCode()
+    result = 31 * result + indices.contentHashCode()
+    result = 31 * result + vertexCount
+    result = 31 * result + indexCount
+    result = 31 * result + boundingHalfExtent.hashCode()
+    return result
+  }
 }

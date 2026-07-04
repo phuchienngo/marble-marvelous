@@ -15,9 +15,9 @@ import java.io.InputStream
 import java.util.Locale
 import java.util.Scanner
 import java.util.TimeZone
+import androidx.core.content.edit
 
-class UserLocationEarth
-constructor(
+class UserLocationEarth(
   private val context: Context
 ) : PermissionsListener {
   private val locationManager: LocationManager =
@@ -43,10 +43,10 @@ constructor(
       val lat: Float = location.latitude.toFloat()
       val lng: Float = location.longitude.toFloat()
       preferences
-        .edit()
-        .putFloat(PREF_LAST_LNG, lng)
-        .putFloat(PREF_LAST_LAT, lat)
-        .apply()
+        .edit {
+          putFloat(PREF_LAST_LNG, lng)
+            .putFloat(PREF_LAST_LAT, lat)
+        }
       return GeoLocation(
         longitudeDegrees = lng,
         latitudeDegrees = lat
@@ -95,7 +95,7 @@ constructor(
       val locale: Locale =
         context.resources.configuration.locales
           .get(0)
-      val country: String = locale.getISO3Country()
+      val country: String = locale.isO3Country
       val countryData: JSONArray = countries!!.getJSONArray(country)
       GeoLocation(
         longitudeDegrees = countryData.getDouble(2).toFloat(),

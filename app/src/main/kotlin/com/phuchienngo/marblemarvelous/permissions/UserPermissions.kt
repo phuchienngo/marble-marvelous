@@ -3,6 +3,7 @@ package com.phuchienngo.marblemarvelous.permissions
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import java.util.concurrent.atomic.AtomicBoolean
 
 abstract class UserPermissions(
@@ -73,7 +74,7 @@ abstract class UserPermissions(
       registered.set(LISTENER_REGISTERED)
       preferences.registerOnSharedPreferenceChangeListener(this)
       val intent: Intent = Intent(context, PermissionsActivity::class.java)
-      intent.flags = 276824064
+      intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
       intent.putExtra(PERMISSIONS_REQUESTED, permissions)
       intent.putExtra(SHARED_PREF_KEY, getSharedPrefKey())
       context.startActivity(intent)
@@ -93,7 +94,7 @@ abstract class UserPermissions(
   private fun checkPermissionsGranted(): Boolean {
     var pg = true
     for (permission in permissions) {
-      pg = context.checkSelfPermission(permission) == 0
+      pg = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
       if (!pg) {
         break
       }

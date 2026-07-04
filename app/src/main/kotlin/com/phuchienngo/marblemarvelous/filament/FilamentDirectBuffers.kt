@@ -1,6 +1,7 @@
 package com.phuchienngo.marblemarvelous.filament
 
 import android.content.Context
+import java.io.IOException
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -52,7 +53,7 @@ internal object FilamentDirectBuffers {
         val length: Long = descriptor.length
         if (length in 0..Int.MAX_VALUE.toLong()) length.toInt() else -1
       }
-    } catch (ioException: java.io.IOException) {
+    } catch (_: IOException) {
       // Compressed assets cannot be opened as a file descriptor.
       -1
     }

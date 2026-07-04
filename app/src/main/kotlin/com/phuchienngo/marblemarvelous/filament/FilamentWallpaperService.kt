@@ -18,6 +18,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class FilamentWallpaperService : WallpaperService() {
   @Inject
@@ -96,6 +98,13 @@ class FilamentWallpaperService : WallpaperService() {
       super.onVisibilityChanged(visible)
       isVisible = visible
       renderer?.setPaused(!visible)
+      // Only poll the aurora feed while visible: no network wake-ups for a
+      // wallpaper the user isn't looking at.
+      if (visible && renderer != null) {
+        startAuroraRefresh()
+      } else if (!visible) {
+        stopAuroraRefresh()
+      }
       updateFrameLoop()
     }
 
@@ -130,7 +139,9 @@ class FilamentWallpaperService : WallpaperService() {
             newRenderer.setPaused(!isVisible)
             renderer = newRenderer
             startCloudRefresh()
-            startAuroraRefresh()
+            if (isVisible) {
+              startAuroraRefresh()
+            }
           }
       } catch (throwable: Throwable) {
         Log.e(TAG, "Failed to create Filament renderer", throwable)
@@ -224,6 +235,11 @@ class FilamentWallpaperService : WallpaperService() {
         }
     }
 
+    private fun stopAuroraRefresh() {
+      auroraRefreshJob?.cancel()
+      auroraRefreshJob = null
+    }
+
     private fun renderOnce() {
       if (!canRender()) {
         return
@@ -298,7 +314,7 @@ class FilamentWallpaperService : WallpaperService() {
   }
 
   companion object {
-    private const val AURORA_REFRESH_INTERVAL_MILLIS: Long = 1_800_000L
+    private val AURORA_REFRESH_INTERVAL_MILLIS: Duration = 1800.seconds
     private const val CLEAR_SURFACE_FRAME_RATE: Float = 0.0f
     private const val MILLIS_PER_SECOND: Long = 1000L
     private const val TAG: String = "FilamentWallpaper"

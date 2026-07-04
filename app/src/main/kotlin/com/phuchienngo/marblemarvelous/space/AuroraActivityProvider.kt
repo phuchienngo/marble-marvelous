@@ -37,7 +37,7 @@ constructor(
             if (!response.isSuccessful) {
               return@readActivity null
             }
-            val body: String = response.body?.string() ?: return@readActivity null
+            val body: String = response.body.string()
             return@readActivity parseActivity(body)
           }
       } catch (e: Exception) {

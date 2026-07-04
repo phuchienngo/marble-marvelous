@@ -32,6 +32,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.math.tan
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Builds the 6 cube-map faces (px/nx/.../nz.r8) consumed by
@@ -187,8 +189,8 @@ constructor(
             }
             val bitmap: Bitmap? =
               response.body
-                ?.byteStream()
-                ?.use decodeTile@{ stream: InputStream ->
+                .byteStream()
+                .use decodeTile@{ stream: InputStream ->
                   return@decodeTile BitmapFactory.decodeStream(stream)
                 }
             if (bitmap != null) {
@@ -486,7 +488,7 @@ constructor(
     private const val RAW_FACE_EXTENSION: String = ".r8"
     private const val TEMP_RAW_FACE_EXTENSION: String = ".tmp"
     private const val TILE_ATTEMPTS: Int = 3
-    private const val TILE_RETRY_DELAY_MS: Long = 1500L
+    private val TILE_RETRY_DELAY_MS: Duration = 1.5.seconds
 
     // Center-heavy 3x3 kernel (1-2-1 / 2-8-2 / 1-2-1) = light denoise that
     // keeps cloud detail, instead of the old even 2-4-2 Gaussian which blurred

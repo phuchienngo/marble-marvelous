@@ -29,7 +29,6 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
 import java.util.Date
-import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
@@ -219,12 +218,11 @@ internal class FilamentEarthRenderer(
     val currentSwapChain: SwapChain = swapChain ?: return
     swapChain = null
     attachedSurface = null
-    // Resume first: flushAndWait blocks on the backend thread, which is
-    // suspended while the (Vulkan) engine is paused. Then drain any in-flight
-    // frame so the GPU no longer reads the surface before the swap chain is
-    // destroyed. The Engine and all its resources are kept alive for reuse.
-    engine.setPaused(false)
-    engine.flushAndWait()
+    // The frame loop is already stopped before this runs, so just release the
+    // swap chain. We intentionally do NOT flushAndWait() here: blocking the main
+    // thread while the OS is tearing down the Surface risks an ANR. Filament
+    // sequences the swap-chain teardown on its own backend thread. The engine's
+    // pause state (set on visibility change) is left untouched.
     engine.destroySwapChain(currentSwapChain)
   }
 
@@ -258,7 +256,7 @@ internal class FilamentEarthRenderer(
   }
 
   fun setPaused(paused: Boolean) {
-    engine.setPaused(paused)
+    engine.isPaused = paused
     if (!paused) {
       cameraNeedsUpdate = true
       firstFrameTimeNanos = 0L
