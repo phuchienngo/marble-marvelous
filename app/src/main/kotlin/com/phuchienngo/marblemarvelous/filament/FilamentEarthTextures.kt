@@ -13,10 +13,11 @@ import java.util.Calendar
 internal class FilamentEarthTextures private constructor(
   private val dayMap: Texture,
   private val nightMap: Texture,
-  private val cloudMaskMap: Texture,
+  private var cloudMaskMap: Texture,
   private val cloudDetailMap: Texture,
   private val sampler: TextureSampler,
-  private val retainedUploadBuffers: List<ByteBuffer>
+  private val retainedUploadBuffers: List<ByteBuffer>,
+  private var rawCloudUploadBuffer: ByteBuffer?
 ) {
   fun bind(materialInstance: MaterialInstance) {
     materialInstance.setParameter(FilamentEarthMaterial.DAY_MAP, dayMap, sampler)
@@ -33,6 +34,27 @@ internal class FilamentEarthTextures private constructor(
     }
     engine.destroyTexture(cloudDetailMap)
     retainedUploadBuffers.forEach { uploadBuffer -> uploadBuffer.clear() }
+    rawCloudUploadBuffer?.clear()
+  }
+
+  fun reloadCloudMask(
+    context: Context,
+    engine: Engine,
+    materialInstance: MaterialInstance
+  ): Boolean {
+    val rawCloudTexture: RawCloudTexture = loadCachedCloudMask(context, engine) ?: return false
+    val previousCloudMaskMap: Texture = cloudMaskMap
+    val previousRawCloudUploadBuffer: ByteBuffer? = rawCloudUploadBuffer
+
+    cloudMaskMap = rawCloudTexture.texture
+    rawCloudUploadBuffer = rawCloudTexture.uploadBuffer
+    materialInstance.setParameter(FilamentEarthMaterial.CLOUD_MASK_MAP, cloudMaskMap, sampler)
+
+    if (previousCloudMaskMap !== cloudDetailMap) {
+      engine.destroyTexture(previousCloudMaskMap)
+    }
+    previousRawCloudUploadBuffer?.clear()
+    return true
   }
 
   companion object {
@@ -74,12 +96,12 @@ internal class FilamentEarthTextures private constructor(
             TextureSampler.WrapMode.CLAMP_TO_EDGE
           ),
         retainedUploadBuffers =
-          listOfNotNull(
+          listOf(
             dayMap.uploadBuffer,
             nightMap.uploadBuffer,
-            cloudDetailMap.uploadBuffer,
-            rawCloudTexture?.uploadBuffer
-          )
+            cloudDetailMap.uploadBuffer
+          ),
+        rawCloudUploadBuffer = rawCloudTexture?.uploadBuffer
       )
     }
 

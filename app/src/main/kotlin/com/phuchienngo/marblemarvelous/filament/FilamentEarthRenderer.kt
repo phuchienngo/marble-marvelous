@@ -62,77 +62,140 @@ internal class FilamentEarthRenderer(
   private var firstFrameTimeNanos: Long = 0L
 
   init {
-    FilamentRuntime.initialize()
-    entityManager = EntityManager.get()
-    engine = Engine.create(Engine.Backend.VULKAN)
-    Log.i(TAG, "Filament backend: ${engine.backend}")
-    swapChain = engine.createSwapChain(surface)
-    renderer = engine.createRenderer()
-    renderer.clearOptions = Renderer.ClearOptions().apply {
-      clear = true
-      discard = true
-      clearColor = doubleArrayOf(0.0, 0.0, 0.0, 1.0)
-    }
-
-    scene = engine.createScene()
-    view = engine.createView()
-    view.scene = scene
-    view.antiAliasing = View.AntiAliasing.NONE
-    view.isPostProcessingEnabled = false
-
-    skybox =
-      Skybox
-        .Builder()
-        .color(0.0f, 0.0f, 0.012f, 1.0f)
-        .build(engine)
-    scene.skybox = skybox
-
-    cameraEntity = entityManager.create()
-    camera = engine.createCamera(cameraEntity)
-    view.camera = camera
-    userLocation = UserLocationEarth(context)
-
-    val mesh: FilamentEarthMeshData =
-      context.assets.open(EARTH_MODEL_ASSET).use { input ->
-        FilamentG3dbEarthMesh.load(input)
+    val cleanupStack = FailureCleanupStack()
+    try {
+      FilamentRuntime.initialize()
+      entityManager = EntityManager.get()
+      engine = Engine.create(Engine.Backend.VULKAN)
+      cleanupStack.register {
+        engine.destroy()
       }
-    vertexBuffer = createVertexBuffer(mesh)
-    indexBuffer = createIndexBuffer(mesh)
-    material = FilamentEarthMaterial.create(engine)
-    materialInstance = material.createInstance()
-    earthTextures = FilamentEarthTextures.create(context, engine)
-    earthTextures.bind(materialInstance)
-    updateSunDirection()
+      Log.i(TAG, "Filament backend: ${engine.backend}")
 
-    earthEntity = entityManager.create()
-    RenderableManager
-      .Builder(RENDERABLE_COUNT)
-      .geometry(
-        PRIMITIVE_INDEX,
-        RenderableManager.PrimitiveType.TRIANGLES,
-        vertexBuffer,
-        indexBuffer,
-        0,
-        mesh.indexCount
-      )
-      .material(PRIMITIVE_INDEX, materialInstance)
-      .boundingBox(
-        Box(
-          0.0f,
-          0.0f,
-          0.0f,
-          mesh.boundingHalfExtent,
-          mesh.boundingHalfExtent,
-          mesh.boundingHalfExtent
+      swapChain = engine.createSwapChain(surface)
+      cleanupStack.register {
+        engine.destroySwapChain(swapChain)
+      }
+      renderer = engine.createRenderer()
+      cleanupStack.register {
+        engine.destroyRenderer(renderer)
+      }
+      renderer.clearOptions = Renderer.ClearOptions().apply {
+        clear = true
+        discard = true
+        clearColor = doubleArrayOf(0.0, 0.0, 0.0, 1.0)
+      }
+
+      scene = engine.createScene()
+      cleanupStack.register {
+        engine.destroyScene(scene)
+      }
+      view = engine.createView()
+      cleanupStack.register {
+        engine.destroyView(view)
+      }
+      view.scene = scene
+      view.antiAliasing = View.AntiAliasing.NONE
+      view.isPostProcessingEnabled = false
+
+      skybox =
+        Skybox
+          .Builder()
+          .color(0.0f, 0.0f, 0.012f, 1.0f)
+          .build(engine)
+      cleanupStack.register {
+        engine.destroySkybox(skybox)
+      }
+      scene.skybox = skybox
+
+      cameraEntity = entityManager.create()
+      cleanupStack.register {
+        entityManager.destroy(cameraEntity)
+      }
+      camera = engine.createCamera(cameraEntity)
+      cleanupStack.register {
+        engine.destroyCameraComponent(cameraEntity)
+      }
+      view.camera = camera
+      userLocation = UserLocationEarth(context)
+
+      val mesh: FilamentEarthMeshData =
+        context.assets.open(EARTH_MODEL_ASSET).use { input ->
+          FilamentG3dbEarthMesh.load(input)
+        }
+      vertexBuffer = createVertexBuffer(mesh)
+      cleanupStack.register {
+        engine.destroyVertexBuffer(vertexBuffer)
+      }
+      indexBuffer = createIndexBuffer(mesh)
+      cleanupStack.register {
+        engine.destroyIndexBuffer(indexBuffer)
+      }
+      material = FilamentEarthMaterial.create(engine)
+      cleanupStack.register {
+        engine.destroyMaterial(material)
+      }
+      materialInstance = material.createInstance()
+      cleanupStack.register {
+        engine.destroyMaterialInstance(materialInstance)
+      }
+      earthTextures = FilamentEarthTextures.create(context, engine)
+      cleanupStack.register {
+        earthTextures.destroy(engine)
+      }
+      earthTextures.bind(materialInstance)
+      updateSunDirection()
+
+      earthEntity = entityManager.create()
+      cleanupStack.register {
+        entityManager.destroy(earthEntity)
+      }
+      RenderableManager
+        .Builder(RENDERABLE_COUNT)
+        .geometry(
+          PRIMITIVE_INDEX,
+          RenderableManager.PrimitiveType.TRIANGLES,
+          vertexBuffer,
+          indexBuffer,
+          0,
+          mesh.indexCount
         )
-      )
-      .culling(true)
-      .castShadows(false)
-      .receiveShadows(false)
-      .build(engine, earthEntity)
-    scene.addEntity(earthEntity)
-    stars = FilamentStars.create(engine, entityManager)
-    scene.addEntity(stars.entity)
+        .material(PRIMITIVE_INDEX, materialInstance)
+        .boundingBox(
+          Box(
+            0.0f,
+            0.0f,
+            0.0f,
+            mesh.boundingHalfExtent,
+            mesh.boundingHalfExtent,
+            mesh.boundingHalfExtent
+          )
+        )
+        .culling(true)
+        .castShadows(false)
+        .receiveShadows(false)
+        .build(engine, earthEntity)
+      cleanupStack.register {
+        engine.destroyEntity(earthEntity)
+      }
+      scene.addEntity(earthEntity)
+      cleanupStack.register {
+        scene.removeEntity(earthEntity)
+      }
+
+      stars = FilamentStars.create(engine, entityManager)
+      cleanupStack.register {
+        stars.destroy(engine, entityManager)
+      }
+      scene.addEntity(stars.entity)
+      cleanupStack.register {
+        scene.removeEntity(stars.entity)
+      }
+      cleanupStack.dismiss()
+    } catch (throwable: Throwable) {
+      cleanupStack.cleanUpFailure(throwable)
+      throw throwable
+    }
   }
 
   fun resize(
@@ -181,6 +244,9 @@ internal class FilamentEarthRenderer(
     renderer.render(view)
     renderer.endFrame()
   }
+
+  fun reloadCloudMask(context: Context): Boolean =
+    earthTextures.reloadCloudMask(context, engine, materialInstance)
 
   fun destroy() {
     scene.removeEntity(earthEntity)

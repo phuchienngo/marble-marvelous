@@ -54,6 +54,7 @@ adb shell am start -a android.service.wallpaper.CHANGE_LIVE_WALLPAPER \
 | JVM target | **17** |
 | Filament | **1.72.0** |
 | Kotlin Coroutines | **1.11.0** |
+| Dagger | **2.60** |
 | OkHttp | **5.4.0** |
 | Jetpack Compose | BOM **2026.06.01**, Activity Compose **1.13.0** |
 
@@ -61,6 +62,9 @@ Gradle application id and namespace: `com.phuchienngo.marblemarvelous`.
 
 ## Architecture
 
+- `di/MarbleComponent.kt` defines the Dagger 2 graph for app-level runtime
+  dependencies such as `OkHttpClient`, the OpenWeather API key, and IO
+  dispatcher.
 - `filament/FilamentWallpaperService.kt` hosts the live wallpaper service.
 - `filament/FilamentEarthRenderer.kt` owns the Filament engine, Vulkan backend,
   swapchain, camera, scene, and frame rendering.
@@ -106,8 +110,10 @@ Shader cloud composition:
 OpenWeather API key:
 
 - Resource name: `openweather_api_key`
-- Location: `app/src/main/res/values/strings.xml`
-- The value is packaged into the APK.
+- Set `OPENWEATHER_API_KEY` as a Gradle property or environment variable before
+  building.
+- The default value is empty, so the APK ships without a committed key and uses
+  the bundled cloud texture until a key is provided.
 
 ## Rendering And Power
 

@@ -1,8 +1,24 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")
 }
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.isFile) {
+    localPropertiesFile.inputStream().use { inputStream ->
+        localProperties.load(inputStream)
+    }
+}
+val localOpenWeatherApiKey = localProperties.getProperty("OPENWEATHER_API_KEY", "")
+val openWeatherApiKeyProvider = providers
+    .gradleProperty("OPENWEATHER_API_KEY")
+    .orElse(providers.environmentVariable("OPENWEATHER_API_KEY"))
+    .orElse(localOpenWeatherApiKey)
 
 android {
     namespace = "com.phuchienngo.marblemarvelous"
@@ -16,6 +32,7 @@ android {
         versionName = "0.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resValue("string", "openweather_api_key", openWeatherApiKeyProvider.get())
 
         ndk {
             abiFilters += "arm64-v8a"
@@ -56,7 +73,9 @@ kotlin {
 }
 
 dependencies {
+    val daggerVersion = "2.60"
     val filamentVersion = "1.72.0"
+    val okhttpVersion = "5.4.0"
 
     // --- Jetpack Compose (small Android UI surfaces such as runtime-permission screens) ---
     implementation(platform("androidx.compose:compose-bom:2026.06.01"))
@@ -72,9 +91,12 @@ dependencies {
     // --- Kotlin coroutines (background weather fetches) ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 
-    // --- OkHttp + official coroutines adapter (OpenWeather cloud-tile downloads) ---
-    implementation("com.squareup.okhttp3:okhttp:5.4.0")
-    implementation("com.squareup.okhttp3:okhttp-coroutines:5.4.0")
+    // --- Dagger dependency graph for wallpaper runtime dependencies ---
+    implementation("com.google.dagger:dagger:$daggerVersion")
+    ksp("com.google.dagger:dagger-compiler:$daggerVersion")
+
+    // --- OkHttp for OpenWeather cloud-tile downloads ---
+    implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
 
     testImplementation("junit:junit:4.13.2")
 }

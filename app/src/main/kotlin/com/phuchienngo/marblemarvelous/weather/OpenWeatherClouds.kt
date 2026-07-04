@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import com.phuchienngo.marblemarvelous.di.WeatherDispatcher
 import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.FACE
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.LON_OFFSET_DEG
@@ -13,10 +14,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import okhttp3.coroutines.executeAsync
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -35,16 +37,19 @@ import kotlin.math.tan
  *
  * Replaces the dead Google clouds-cubemap download. OpenWeather only serves 2D
  * web-mercator tiles, so the global cloud layer is re-projected onto an OpenGL
- * cube map (no GL/shader changes needed). Set the key in strings.xml ->
- * openweather_api_key. Empty key keeps the bundled earth/clouds.ktx.
+ * cube map (no GL/shader changes needed). Set OPENWEATHER_API_KEY as a Gradle
+ * property or environment variable before building. Empty key keeps the bundled
+ * earth/clouds.ktx.
  *
  * NOTE: cube orientation vs the Earth model may need a [LON_OFFSET_DEG] tweak
  * once it can be run on a device.
  */
+@Singleton
 class OpenWeatherClouds
+@Inject
 constructor(
   private val httpClient: OkHttpClient,
-  private val defaultDispatcher: CoroutineDispatcher
+  @param:WeatherDispatcher private val defaultDispatcher: CoroutineDispatcher
 ) {
   suspend fun generateCubeFaces(
     context: Context,
@@ -134,7 +139,7 @@ constructor(
       try {
         httpClient
           .newCall(request)
-          .executeAsync()
+          .execute()
           .use downloadResponse@{ response: Response ->
             if (!response.isSuccessful) {
               Console.warn(TAG, "Tile $z/$x/$y -> HTTP ${response.code} (attempt ${attempt + 1})")

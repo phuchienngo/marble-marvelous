@@ -11,6 +11,7 @@
         android:glEsVersion="0x30001"
         android:required="true"/>
     <application
+        android:name=".MarbleApplication"
         android:theme="@style/wallpapersTheme"
         android:label="@string/app_name"
         android:testOnly="false"

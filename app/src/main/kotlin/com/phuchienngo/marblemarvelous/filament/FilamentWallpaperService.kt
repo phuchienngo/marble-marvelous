@@ -1,13 +1,35 @@
 package com.phuchienngo.marblemarvelous.filament
 
-import android.os.Build
 import android.service.wallpaper.WallpaperService
 import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
+import com.phuchienngo.marblemarvelous.MarbleApplication
+import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
+import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 class FilamentWallpaperService : WallpaperService() {
+  @Inject
+  internal lateinit var openWeatherClouds: OpenWeatherClouds
+
+  @Inject
+  @field:OpenWeatherApiKey
+  internal lateinit var openWeatherApiKey: String
+
+  override fun onCreate() {
+    super.onCreate()
+    (application as MarbleApplication).component.inject(this)
+  }
+
   override fun onCreateEngine(): Engine = FilamentWallpaperEngine()
 
   private inner class FilamentWallpaperEngine :
@@ -19,6 +41,9 @@ class FilamentWallpaperService : WallpaperService() {
     private var isSurfaceReady = false
     private var isVisible = false
     private var lastRenderedFrameNanos = 0L
+    private val cloudRefreshScope: CoroutineScope =
+      CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var cloudRefreshJob: Job? = null
 
     override fun onCreate(surfaceHolder: SurfaceHolder) {
       super.onCreate(surfaceHolder)
@@ -69,6 +94,7 @@ class FilamentWallpaperService : WallpaperService() {
     override fun onDestroy() {
       isDestroyed = true
       stopFrameLoop()
+      cloudRefreshScope.cancel()
       destroyRenderer()
       super.onDestroy()
     }
@@ -108,11 +134,47 @@ class FilamentWallpaperService : WallpaperService() {
           .also { newRenderer ->
             newRenderer.setPaused(!isVisible)
             renderer = newRenderer
+            startCloudRefresh()
           }
       } catch (throwable: Throwable) {
         Log.e(TAG, "Failed to create Filament renderer", throwable)
         null
       }
+    }
+
+    private fun startCloudRefresh() {
+      val apiKey: String = openWeatherApiKey
+      if (apiKey.isBlank()) {
+        return
+      }
+      if (cloudRefreshJob?.isActive == true) {
+        return
+      }
+      cloudRefreshJob =
+        cloudRefreshScope.launch {
+          val generated: Boolean =
+            try {
+              openWeatherClouds.generateCubeFaces(applicationContext, apiKey)
+            } catch (throwable: Throwable) {
+              if (throwable is CancellationException) {
+                throw throwable
+              }
+              Log.e(TAG, "Failed to generate OpenWeather cloud cache", throwable)
+              return@launch
+            }
+          if (!generated || isDestroyed) {
+            return@launch
+          }
+          val currentRenderer: FilamentEarthRenderer = renderer ?: return@launch
+          try {
+            val reloaded: Boolean = currentRenderer.reloadCloudMask(applicationContext)
+            if (reloaded) {
+              renderOnce()
+            }
+          } catch (throwable: Throwable) {
+            Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
+          }
+        }
     }
 
     private fun renderOnce() {
@@ -173,14 +235,14 @@ class FilamentWallpaperService : WallpaperService() {
       surface: Surface,
       frameRate: Float
     ) {
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !surface.isValid) {
+      if (!surface.isValid) {
         return
       }
       surface.setFrameRate(frameRate, Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE)
     }
 
     private fun clearSurfaceFrameRate(surface: Surface) {
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !surface.isValid) {
+      if (!surface.isValid) {
         return
       }
       surface.setFrameRate(CLEAR_SURFACE_FRAME_RATE, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)

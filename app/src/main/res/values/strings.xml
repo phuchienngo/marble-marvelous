@@ -6,6 +6,4 @@
     <string name="google_earth_weather_collection">OpenWeather API, Living Universe</string>
     <string name="permissions_activity">Write Permissions</string>
     <string name="permissions_request_message">Preparing location permission request</string>
-    <!-- Paste your OpenWeatherMap API key here to enable live clouds (empty = bundled clouds.ktx) -->
-    <string name="openweather_api_key">c8d5afd9779bc185fddf3dd0ac4e04b2</string>
 </resources>
