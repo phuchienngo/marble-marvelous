@@ -12,7 +12,9 @@ material {
     { type : sampler2dArray, format : float, precision : medium, name : nightMap },
     { type : sampler2dArray, format : float, precision : medium, name : cloudMaskMap },
     { type : sampler2dArray, format : float, precision : medium, name : cloudDetailMap },
-    { type : float3, name : sunDirection }
+    { type : float3, name : sunDirection },
+    { type : float3, name : userLocation },
+    { type : float, name : time }
   ],
   variantFilter : [
     directionalLighting,
@@ -220,6 +222,16 @@ fragment {
     float edgeMix = smoothstep(0.1, 0.38, eyeLight);
     float3 atmosphere = mix(float3(0.38, 0.69, 0.95), float3(0.68, 0.82, 0.94), edgeMix);
     base = mix(base, atmosphere, edgeGlow * 0.55);
+
+    // "You are here" marker: a solid dot plus an expanding, fading sonar ping
+    // at the user's location (mesh-local direction). Only the visible hemisphere
+    // is rasterized, so it shows only when the location faces the camera.
+    float locationAngle = acos(clamp(dot(lookup, normalize(materialParams.userLocation)), -1.0, 1.0));
+    float ping = fract(materialParams.time * 0.5);
+    float pingRing = smoothstep(0.010, 0.0, abs(locationAngle - ping * 0.11)) * (1.0 - ping);
+    float markerCore = smoothstep(0.020, 0.006, locationAngle);
+    float marker = clamp(markerCore + pingRing, 0.0, 1.0);
+    base = mix(base, float3(0.25, 0.95, 1.0), marker * 0.9);
 
     material.baseColor = float4(clamp(base, 0.0, 1.0), 1.0);
   }

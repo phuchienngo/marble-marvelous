@@ -271,6 +271,7 @@ internal class FilamentEarthRenderer(
     updateCameraIfNeeded()
     val elapsedSeconds: Float = (frameTimeNanos - firstFrameTimeNanos).toFloat() * NANOS_TO_SECONDS
     stars.setTime(elapsedSeconds)
+    materialInstance.setParameter(FilamentEarthMaterial.TIME, elapsedSeconds)
     if (!renderer.beginFrame(currentSwapChain, frameTimeNanos)) {
       return
     }
@@ -379,6 +380,23 @@ internal class FilamentEarthRenderer(
     val beginningOfDay: Date = DateUtils.getAtBeginningOfDay(utcDate)
     val utcDayRatio: Float = (utcDate.time - beginningOfDay.time) / DateUtils.MILLIS_IN_A_DAY
     val location: GeoLocation = userLocation.lastKnown(requestPermissions = false)
+    // Mesh-local direction of the user's location (no rotation): the earth shader
+    // works in mesh-local space, so the marker rides the geography as it spins.
+    val markerDirection: Vec3 =
+      EarthLocationMath
+        .locationSurface(
+          longitudeDegrees = location.longitudeDegrees,
+          latitudeDegrees = location.latitudeDegrees,
+          radius = 1.0f,
+          earthRotationDegrees = 0.0f
+        )
+        .normalized()
+    materialInstance.setParameter(
+      FilamentEarthMaterial.USER_LOCATION,
+      markerDirection.x,
+      markerDirection.y,
+      markerDirection.z
+    )
     val surface: Vec3 =
       EarthLocationMath.locationSurface(
         longitudeDegrees = location.longitudeDegrees,

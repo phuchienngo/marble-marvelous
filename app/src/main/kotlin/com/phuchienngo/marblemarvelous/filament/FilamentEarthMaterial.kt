@@ -16,4 +16,6 @@ internal object FilamentEarthMaterial {
   const val DAY_MAP: String = "dayMap"
   const val NIGHT_MAP: String = "nightMap"
   const val SUN_DIRECTION: String = "sunDirection"
+  const val USER_LOCATION: String = "userLocation"
+  const val TIME: String = "time"
 }
