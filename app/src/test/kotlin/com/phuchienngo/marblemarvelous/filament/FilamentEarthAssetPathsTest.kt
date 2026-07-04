@@ -1,0 +1,33 @@
+package com.phuchienngo.marblemarvelous.filament
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class FilamentEarthAssetPathsTest {
+  @Test
+  fun picksWinterDayMapForDecemberJanuaryAndFebruary() {
+    assertEquals("earth/dayMap-Winter.ktx", FilamentEarthAssetPaths.dayMapForMonth(12))
+    assertEquals("earth/dayMap-Winter.ktx", FilamentEarthAssetPaths.dayMapForMonth(1))
+    assertEquals("earth/dayMap-Winter.ktx", FilamentEarthAssetPaths.dayMapForMonth(2))
+  }
+
+  @Test
+  fun picksSummerDayMapForJuneJulyAndAugust() {
+    assertEquals("earth/dayMap-Summer.ktx", FilamentEarthAssetPaths.dayMapForMonth(6))
+    assertEquals("earth/dayMap-Summer.ktx", FilamentEarthAssetPaths.dayMapForMonth(7))
+    assertEquals("earth/dayMap-Summer.ktx", FilamentEarthAssetPaths.dayMapForMonth(8))
+  }
+
+  @Test
+  fun picksSpringFallDayMapForRemainingMonths() {
+    assertEquals("earth/dayMap-Spring-Fall.ktx", FilamentEarthAssetPaths.dayMapForMonth(3))
+    assertEquals("earth/dayMap-Spring-Fall.ktx", FilamentEarthAssetPaths.dayMapForMonth(5))
+    assertEquals("earth/dayMap-Spring-Fall.ktx", FilamentEarthAssetPaths.dayMapForMonth(9))
+    assertEquals("earth/dayMap-Spring-Fall.ktx", FilamentEarthAssetPaths.dayMapForMonth(11))
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun rejectsInvalidMonth() {
+    FilamentEarthAssetPaths.dayMapForMonth(13)
+  }
+}

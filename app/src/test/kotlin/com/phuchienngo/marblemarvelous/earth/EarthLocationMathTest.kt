@@ -1,7 +1,6 @@
 package com.phuchienngo.marblemarvelous.earth
 
-import com.badlogic.gdx.math.Matrix4
-import com.badlogic.gdx.math.Vector3
+import com.phuchienngo.marblemarvelous.math.Vec3
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -9,43 +8,69 @@ import org.junit.Test
 class EarthLocationMathTest {
   @Test
   fun locationSurfaceMapsLongitudeAndLatitudeToExpectedAxes() {
-    val earthTransform: Matrix4 = Matrix4().idt()
-
     assertVector(
       expectedX = 0.0f,
       expectedY = 0.0f,
       expectedZ = 1.0f,
-      actual = EarthLocationMath.locationSurface(0.0f, 0.0f, RADIUS, earthTransform)
+      actual =
+        EarthLocationMath.locationSurface(
+          longitudeDegrees = 0.0f,
+          latitudeDegrees = 0.0f,
+          radius = RADIUS,
+          earthRotationDegrees = 0.0f
+        )
     )
     assertVector(
       expectedX = 1.0f,
       expectedY = 0.0f,
       expectedZ = 0.0f,
-      actual = EarthLocationMath.locationSurface(90.0f, 0.0f, RADIUS, earthTransform)
+      actual =
+        EarthLocationMath.locationSurface(
+          longitudeDegrees = 90.0f,
+          latitudeDegrees = 0.0f,
+          radius = RADIUS,
+          earthRotationDegrees = 0.0f
+        )
     )
     assertVector(
       expectedX = -1.0f,
       expectedY = 0.0f,
       expectedZ = 0.0f,
-      actual = EarthLocationMath.locationSurface(-90.0f, 0.0f, RADIUS, earthTransform)
+      actual =
+        EarthLocationMath.locationSurface(
+          longitudeDegrees = -90.0f,
+          latitudeDegrees = 0.0f,
+          radius = RADIUS,
+          earthRotationDegrees = 0.0f
+        )
     )
     assertVector(
       expectedX = 0.0f,
       expectedY = 1.0f,
       expectedZ = 0.0f,
-      actual = EarthLocationMath.locationSurface(0.0f, 90.0f, RADIUS, earthTransform)
+      actual =
+        EarthLocationMath.locationSurface(
+          longitudeDegrees = 0.0f,
+          latitudeDegrees = 90.0f,
+          radius = RADIUS,
+          earthRotationDegrees = 0.0f
+        )
     )
   }
 
   @Test
   fun locationSurfaceAppliesEarthTransform() {
-    val earthTransform: Matrix4 = Matrix4().rotate(Vector3.Y, 90.0f)
-
     assertVector(
       expectedX = 1.0f,
       expectedY = 0.0f,
       expectedZ = 0.0f,
-      actual = EarthLocationMath.locationSurface(0.0f, 0.0f, RADIUS, earthTransform)
+      actual =
+        EarthLocationMath.locationSurface(
+          longitudeDegrees = 0.0f,
+          latitudeDegrees = 0.0f,
+          radius = RADIUS,
+          earthRotationDegrees = 90.0f
+        )
     )
   }
 
@@ -77,7 +102,7 @@ class EarthLocationMathTest {
     expectedX: Float,
     expectedY: Float,
     expectedZ: Float,
-    actual: Vector3
+    actual: Vec3
   ) {
     assertEquals(expectedX, actual.x, EPSILON)
     assertEquals(expectedY, actual.y, EPSILON)

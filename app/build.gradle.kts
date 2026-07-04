@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
 }
 
 android {
@@ -17,6 +16,10 @@ android {
         versionName = "0.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -53,6 +56,8 @@ kotlin {
 }
 
 dependencies {
+    val filamentVersion = "1.72.0"
+
     // --- Jetpack Compose (small Android UI surfaces such as runtime-permission screens) ---
     implementation(platform("androidx.compose:compose-bom:2026.06.01"))
     implementation("androidx.activity:activity-compose:1.13.0")
@@ -60,16 +65,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
 
-    // --- libGDX 1.14.2 (native libgdx.so from gdx-platform natives in jniLibs) ---
-    implementation("com.badlogicgames.gdx:gdx:1.14.2")
-    implementation("com.badlogicgames.gdx:gdx-backend-android:1.14.2")
+    // --- Filament renderer for direct live-wallpaper rendering. ---
+    implementation("com.google.android.filament:filament-android:$filamentVersion")
+    implementation("com.google.android.filament:filamat-android:$filamentVersion")
 
     // --- Kotlin coroutines (background weather fetches) ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-
-    // --- Dagger 2 DI with @Inject constructor injection via KSP (AGP 8 + KGP). ---
-    implementation("com.google.dagger:dagger:2.60")
-    ksp("com.google.dagger:dagger-compiler:2.60")
 
     // --- OkHttp + official coroutines adapter (OpenWeather cloud-tile downloads) ---
     implementation("com.squareup.okhttp3:okhttp:5.4.0")

@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
-import com.phuchienngo.marblemarvelous.di.DefaultDispatcher
 import com.phuchienngo.marblemarvelous.utils.Console
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.FACE
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.LON_OFFSET_DEG
@@ -18,7 +17,6 @@ import okhttp3.coroutines.executeAsync
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
-import javax.inject.Inject
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -33,7 +31,7 @@ import kotlin.math.tan
 
 /**
  * Builds the 6 cube-map faces (px/nx/.../nz.r8) consumed by
- * [CloudsProvider.getLatest] from OpenWeatherMap cloud map tiles.
+ * Filament's cached raw cloud mask from OpenWeatherMap cloud map tiles.
  *
  * Replaces the dead Google clouds-cubemap download. OpenWeather only serves 2D
  * web-mercator tiles, so the global cloud layer is re-projected onto an OpenGL
@@ -44,10 +42,9 @@ import kotlin.math.tan
  * once it can be run on a device.
  */
 class OpenWeatherClouds
-@Inject
 constructor(
   private val httpClient: OkHttpClient,
-  @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher
+  private val defaultDispatcher: CoroutineDispatcher
 ) {
   suspend fun generateCubeFaces(
     context: Context,

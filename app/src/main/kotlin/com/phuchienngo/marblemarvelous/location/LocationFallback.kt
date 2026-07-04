@@ -1,18 +1,20 @@
 package com.phuchienngo.marblemarvelous.location
 
-import com.badlogic.gdx.math.Vector2
 import java.util.TimeZone
 
 object LocationFallback {
   fun fromTimeZone(
     timeZone: TimeZone,
     timeInMillis: Long
-  ): Vector2 = fromUtcOffset(timeZone.getOffset(timeInMillis))
+  ): GeoLocation = fromUtcOffset(timeZone.getOffset(timeInMillis))
 
-  fun fromUtcOffset(offsetMillis: Int): Vector2 {
+  fun fromUtcOffset(offsetMillis: Int): GeoLocation {
     val offsetHours: Float = offsetMillis / MILLIS_PER_HOUR
     val longitude: Float = (offsetHours * DEGREES_PER_HOUR).coerceIn(MIN_LONGITUDE, MAX_LONGITUDE)
-    return Vector2(longitude, EQUATOR_LATITUDE)
+    return GeoLocation(
+      longitudeDegrees = longitude,
+      latitudeDegrees = EQUATOR_LATITUDE
+    )
   }
 
   private const val DEGREES_PER_HOUR: Float = 15.0f

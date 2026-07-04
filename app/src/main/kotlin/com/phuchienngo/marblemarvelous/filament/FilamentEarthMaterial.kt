@@ -1,0 +1,266 @@
+package com.phuchienngo.marblemarvelous.filament
+
+import com.google.android.filament.Engine
+import com.google.android.filament.Material
+import com.google.android.filament.filamat.MaterialBuilder
+
+internal object FilamentEarthMaterial {
+  fun create(engine: Engine): Material {
+    FilamentRuntime.initialize()
+    val materialPackage =
+      MaterialBuilder()
+        .name(MATERIAL_NAME)
+        .shading(MaterialBuilder.Shading.UNLIT)
+        .require(MaterialBuilder.VertexAttribute.CUSTOM0)
+        .variable(MaterialBuilder.Variable.CUSTOM0, LOOKUP_NORMAL_VARIABLE)
+        .samplerParameter(
+          MaterialBuilder.SamplerType.SAMPLER_2D_ARRAY,
+          MaterialBuilder.SamplerFormat.FLOAT,
+          MaterialBuilder.ParameterPrecision.MEDIUM,
+          DAY_MAP
+        )
+        .samplerParameter(
+          MaterialBuilder.SamplerType.SAMPLER_2D_ARRAY,
+          MaterialBuilder.SamplerFormat.FLOAT,
+          MaterialBuilder.ParameterPrecision.MEDIUM,
+          NIGHT_MAP
+        )
+        .samplerParameter(
+          MaterialBuilder.SamplerType.SAMPLER_2D_ARRAY,
+          MaterialBuilder.SamplerFormat.FLOAT,
+          MaterialBuilder.ParameterPrecision.MEDIUM,
+          CLOUD_MASK_MAP
+        )
+        .samplerParameter(
+          MaterialBuilder.SamplerType.SAMPLER_2D_ARRAY,
+          MaterialBuilder.SamplerFormat.FLOAT,
+          MaterialBuilder.ParameterPrecision.MEDIUM,
+          CLOUD_DETAIL_MAP
+        )
+        .uniformParameter(MaterialBuilder.UniformType.FLOAT3, SUN_DIRECTION)
+        .targetApi(MaterialBuilder.TargetApi.VULKAN)
+        .platform(MaterialBuilder.Platform.MOBILE)
+        .optimization(MaterialBuilder.Optimization.PERFORMANCE)
+        .materialVertex(MATERIAL_VERTEX_BODY)
+        .material(MATERIAL_BODY)
+        .build()
+
+    require(materialPackage.isValid) {
+      "Filament earth material package is invalid"
+    }
+
+    val payload = materialPackage.buffer
+    return Material
+      .Builder()
+      .payload(payload, payload.remaining())
+      .build(engine)
+  }
+
+  const val CLOUD_DETAIL_MAP: String = "cloudDetailMap"
+  const val CLOUD_MASK_MAP: String = "cloudMaskMap"
+  const val DAY_MAP: String = "dayMap"
+  const val NIGHT_MAP: String = "nightMap"
+  const val SUN_DIRECTION: String = "sunDirection"
+
+  private const val MATERIAL_NAME: String = "KtxEarthVulkan"
+  private const val LOOKUP_NORMAL_VARIABLE: String = "lookupNormal"
+  private val MATERIAL_VERTEX_BODY: String =
+    """
+    void materialVertex(inout MaterialVertexInputs material) {
+      material.lookupNormal = getCustom0();
+    }
+    """.trimIndent()
+  private val MATERIAL_BODY: String =
+    """
+    const float cloudIntensityDay = 0.62;
+    const float cloudIntensityNight = 0.36;
+    const float cloudShadowIntensity = 0.34;
+    const float cloudBlurOffset = 0.0075;
+    const float cloudMaskBoost = 1.85;
+    const float cloudThinBoostMix = 0.65;
+    const float cloudPuffReliefStrength = 0.34;
+    const float cloudPuffOpacityStrength = 0.08;
+    const float cloudWhiteLift = 0.68;
+    const float daySharpenAmount = 0.28;
+    const float daySharpenOffset = 0.0016;
+
+    float3 tangentForNormal(float3 normal) {
+      return normalize(cross(normal, float3(0.0, 1.0, 0.0)) + float3(0.0001, 0.0, 0.0));
+    }
+
+    float3 cubeArrayCoord(float3 normal) {
+      float3 n = normalize(normal);
+      float3 a = abs(n);
+      float2 uv;
+      float layer;
+      if (a.x >= a.y && a.x >= a.z) {
+        if (n.x > 0.0) {
+          uv = float2(-n.z, -n.y) / a.x;
+          layer = 0.0;
+        } else {
+          uv = float2(n.z, -n.y) / a.x;
+          layer = 1.0;
+        }
+      } else if (a.y >= a.x && a.y >= a.z) {
+        if (n.y > 0.0) {
+          uv = float2(n.x, n.z) / a.y;
+          layer = 2.0;
+        } else {
+          uv = float2(n.x, -n.z) / a.y;
+          layer = 3.0;
+        }
+      } else {
+        if (n.z > 0.0) {
+          uv = float2(n.x, -n.y) / a.z;
+          layer = 4.0;
+        } else {
+          uv = float2(-n.x, -n.y) / a.z;
+          layer = 5.0;
+        }
+      }
+      return float3(uv * 0.5 + 0.5, layer);
+    }
+
+    float3 sampleDayTexture(float3 normal) {
+      return texture(materialParams_dayMap, cubeArrayCoord(normal)).rgb;
+    }
+
+    float3 sampleNightTexture(float3 normal) {
+      return texture(materialParams_nightMap, cubeArrayCoord(normal)).rgb;
+    }
+
+    float sampleCloudMaskTexture(float3 normal) {
+      return texture(materialParams_cloudMaskMap, cubeArrayCoord(normal)).r;
+    }
+
+    float sampleCloudDetailTexture(float3 normal) {
+      return texture(materialParams_cloudDetailMap, cubeArrayCoord(normal)).r;
+    }
+
+    float3 sampleDaySharp(float3 normal) {
+      float3 n = normalize(normal);
+      float3 tangent = tangentForNormal(n);
+      float3 bitangent = cross(n, tangent);
+      float3 center = sampleDayTexture(n);
+      float3 blur = sampleDayTexture(n + tangent * daySharpenOffset);
+      blur += sampleDayTexture(n - tangent * daySharpenOffset);
+      blur += sampleDayTexture(n + bitangent * daySharpenOffset);
+      blur += sampleDayTexture(n - bitangent * daySharpenOffset);
+      blur *= 0.25;
+      return clamp(center + (center - blur) * daySharpenAmount, 0.0, 1.0);
+    }
+
+    float sampleCloudMask(float3 normal) {
+      float3 n = normalize(normal);
+      float3 tangent = tangentForNormal(n);
+      float3 bitangent = cross(n, tangent);
+      float cloud = sampleCloudMaskTexture(n) * 0.48;
+      cloud += sampleCloudMaskTexture(n + tangent * cloudBlurOffset) * 0.13;
+      cloud += sampleCloudMaskTexture(n - tangent * cloudBlurOffset) * 0.13;
+      cloud += sampleCloudMaskTexture(n + bitangent * cloudBlurOffset) * 0.13;
+      cloud += sampleCloudMaskTexture(n - bitangent * cloudBlurOffset) * 0.13;
+      return cloud;
+    }
+
+    float sampleCloudDetail(float3 normal) {
+      float3 n = normalize(normal);
+      float3 tangent = tangentForNormal(n);
+      float3 bitangent = cross(n, tangent);
+      float cloud = sampleCloudDetailTexture(n) * 0.48;
+      cloud += sampleCloudDetailTexture(n + tangent * cloudBlurOffset) * 0.13;
+      cloud += sampleCloudDetailTexture(n - tangent * cloudBlurOffset) * 0.13;
+      cloud += sampleCloudDetailTexture(n + bitangent * cloudBlurOffset) * 0.13;
+      cloud += sampleCloudDetailTexture(n - bitangent * cloudBlurOffset) * 0.13;
+      return cloud;
+    }
+
+    float boostThinCloudMask(float mask) {
+      return mix(mask, sqrt(mask), cloudThinBoostMix);
+    }
+
+    float3 cloudLookupTransform(float3 normal) {
+      return normalize(float3(normal.z, normal.x, normal.y));
+    }
+
+    float3 cloudShadowLookup(float3 normal) {
+      float angle = 0.00523599;
+      float cosine = cos(angle);
+      float sine = sin(angle);
+      return normalize(float3(normal.x, normal.y * cosine + normal.z * sine, -normal.y * sine + normal.z * cosine));
+    }
+
+    void material(inout MaterialInputs material) {
+      prepareMaterial(material);
+
+      float3 lookup = normalize(variable_lookupNormal.xyz);
+      float3 cloudLookup = cloudLookupTransform(lookup);
+      float3 shadowLookup = cloudShadowLookup(cloudLookup);
+      float3 eyeVector = normalize(getWorldViewVector());
+      float3 worldNormal = normalize(getWorldPosition());
+      float3 lightVector = normalize(materialParams.sunDirection);
+      float eyeLight = abs(dot(worldNormal, eyeVector));
+      float lightDirection = dot(lookup, lightVector);
+      float inverseLightDirection = 1.0 - lightDirection;
+
+      float weatherMask = sampleCloudMask(cloudLookup);
+      float weatherShadowMask = sampleCloudMask(shadowLookup);
+      float boostedWeatherMask = boostThinCloudMask(weatherMask);
+      float boostedWeatherShadowMask = boostThinCloudMask(weatherShadowMask);
+      float cloudDetail = sampleCloudDetail(cloudLookup);
+      float cloudShadowDetail = sampleCloudDetail(shadowLookup);
+      float cloudColor = clamp(boostedWeatherMask * mix(0.58, 1.0, cloudDetail) * cloudMaskBoost, 0.0, 1.0);
+      float cloudShadow = clamp(boostedWeatherShadowMask * mix(0.58, 1.0, cloudShadowDetail) * cloudMaskBoost, 0.0, 1.0);
+      float cloudCoverage = smoothstep(0.04, 0.64, cloudColor);
+      float cloudShadowCoverage = smoothstep(0.06, 0.58, cloudShadow);
+      float cloudPuffCore = smoothstep(0.40, 0.88, cloudCoverage);
+      float cloudPuffDetail = (cloudDetail - 0.50) * cloudPuffCore;
+      float cloudRelief = clamp((cloudColor - cloudShadow) * 2.0 + 0.50 + cloudPuffDetail * cloudPuffReliefStrength, 0.0, 1.0);
+      float cloudSun = smoothstep(-0.20, 0.80, lightDirection);
+
+      float dayCloudOpacity = cloudIntensityDay * cloudCoverage * (0.55 + cloudRelief * 0.35 + cloudPuffCore * cloudDetail * cloudPuffOpacityStrength);
+      float nightCloudOpacity = cloudIntensityNight * cloudCoverage * (0.70 + cloudRelief * 0.25);
+      float3 dayCloudColor = mix(float3(1.0), float3(0.96, 0.97, 0.99), (1.0 - cloudRelief) * 0.08);
+      dayCloudColor = mix(dayCloudColor, float3(1.0), cloudWhiteLift);
+      dayCloudColor = clamp(dayCloudColor * (1.04 + cloudSun * 0.04), 0.0, 1.0);
+      float3 nightCloudColor = mix(float3(0.28, 0.31, 0.38), float3(0.36, 0.40, 0.48), cloudRelief);
+
+      float daylight = smoothstep(-0.12, 0.30, lightDirection);
+      float night = 1.0 - smoothstep(-0.14, 0.22, lightDirection);
+      float dayShade = 0.18 + max(lightDirection, 0.0) * 0.96;
+      float3 daySurface = sampleDaySharp(lookup) * dayShade;
+      daySurface *= 1.0 - cloudShadowCoverage * cloudIntensityDay * cloudShadowIntensity;
+      daySurface = mix(daySurface, dayCloudColor, dayCloudOpacity * smoothstep(-0.18, 0.28, lightDirection));
+
+      float3 nightSurface = sampleNightTexture(lookup);
+      float nightRim = smoothstep(0.0, 0.8, 1.0 - eyeLight);
+      nightSurface -= nightRim * 0.05;
+      nightSurface = mix(nightSurface, nightCloudColor, nightCloudOpacity);
+      nightSurface *= smoothstep(0.0, 1.0, eyeLight);
+      nightSurface *= 0.82 + night * 0.18;
+
+      float limbNight = smoothstep(0.48, 0.95, 1.0 - eyeLight) * smoothstep(0.20, 0.95, inverseLightDirection);
+      float nightMix = max(1.0 - daylight, limbNight * 0.42);
+      float3 base = mix(daySurface, nightSurface, nightMix);
+
+      float sunsetAlpha = smoothstep(0.62, 1.08, inverseLightDirection) * smoothstep(-0.35, 0.25, lightDirection);
+      float3 sunsetColor = mix(float3(0.93, 0.27, 0.06), float3(0.39, 0.44, 0.50), eyeLight);
+      base = mix(base, base * sunsetColor, sunsetAlpha * 0.36);
+
+      float3 reflectedLight = normalize(reflect(-lightVector, lookup));
+      float specular = smoothstep(0.72, 1.10, dot(reflectedLight, eyeVector)) * 0.22;
+      specular *= 1.0 - dayCloudOpacity * 0.70;
+      specular *= smoothstep(-1.5, 1.0, daySurface.b - daySurface.r - daySurface.g);
+      base += float3(1.0, 0.72, 0.52) * specular * max(lightDirection, 0.0);
+
+      float edgeGlow = 1.0 - eyeLight;
+      edgeGlow = smoothstep(0.12, 1.0, edgeGlow);
+      edgeGlow *= 1.0 - smoothstep(0.80, 0.90, edgeGlow);
+      edgeGlow *= max(lightDirection, 0.0);
+      float edgeMix = smoothstep(0.1, 0.38, eyeLight);
+      float3 atmosphere = mix(float3(0.38, 0.69, 0.95), float3(0.68, 0.82, 0.94), edgeMix);
+      base = mix(base, atmosphere, edgeGlow * 0.55);
+
+      material.baseColor = float4(clamp(base, 0.0, 1.0), 1.0);
+    }
+    """.trimIndent()
+}

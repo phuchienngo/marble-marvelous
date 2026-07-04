@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.location.Location
 import android.location.LocationManager
 import android.util.Log
-import com.badlogic.gdx.math.Vector2
 import com.phuchienngo.marblemarvelous.R
 import com.phuchienngo.marblemarvelous.permissions.LocationPermissions
 import com.phuchienngo.marblemarvelous.permissions.PermissionsListener
@@ -16,10 +15,8 @@ import java.io.InputStream
 import java.util.Locale
 import java.util.Scanner
 import java.util.TimeZone
-import javax.inject.Inject
 
 class UserLocationEarth
-@Inject
 constructor(
   private val context: Context
 ) : PermissionsListener {
@@ -30,7 +27,7 @@ constructor(
   private var countries: JSONObject? = null
 
   @SuppressLint("MissingPermission")
-  fun lastKnown(requestPermissions: Boolean): Vector2 {
+  fun lastKnown(requestPermissions: Boolean): GeoLocation {
     val preferences: SharedPreferences = getSharedPreferences()
     permissionsAccepted = locationPermissions.arePermissionsGranted()
     if (!permissionsAccepted) {
@@ -52,30 +49,36 @@ constructor(
       if (!committed) {
         Log.w(TAG, "Couldn't save last known location")
       }
-      return Vector2(lng, lat)
+      return GeoLocation(
+        longitudeDegrees = lng,
+        latitudeDegrees = lat
+      )
     }
     return getCachedLocation(preferences) ?: getFallbackLocation()
   }
 
-  private fun getCachedLocation(preferences: SharedPreferences): Vector2? {
+  private fun getCachedLocation(preferences: SharedPreferences): GeoLocation? {
     val longitude: Float = preferences.getFloat(PREF_LAST_LNG, 0.0f)
     val latitude: Float = preferences.getFloat(PREF_LAST_LAT, 0.0f)
     if (longitude != 0.0f || latitude != 0.0f) {
-      return Vector2(longitude, latitude)
+      return GeoLocation(
+        longitudeDegrees = longitude,
+        latitudeDegrees = latitude
+      )
     }
     return null
   }
 
-  private fun getFallbackLocation(): Vector2 {
-    val timeZoneLocation: Vector2 =
+  private fun getFallbackLocation(): GeoLocation {
+    val timeZoneLocation: GeoLocation =
       LocationFallback.fromTimeZone(TimeZone.getDefault(), System.currentTimeMillis())
-    if (timeZoneLocation.x != GMT_LONGITUDE) {
+    if (timeZoneLocation.longitudeDegrees != GMT_LONGITUDE) {
       return timeZoneLocation
     }
     return getCountryFallbackLocation() ?: timeZoneLocation
   }
 
-  private fun getCountryFallbackLocation(): Vector2? {
+  private fun getCountryFallbackLocation(): GeoLocation? {
     return try {
       if (countries == null) {
         context.resources.openRawResource(R.raw.countries)
@@ -96,7 +99,10 @@ constructor(
           .get(0)
       val country: String = locale.getISO3Country()
       val countryData: JSONArray = countries!!.getJSONArray(country)
-      Vector2(countryData.getDouble(2).toFloat(), countryData.getDouble(1).toFloat())
+      GeoLocation(
+        longitudeDegrees = countryData.getDouble(2).toFloat(),
+        latitudeDegrees = countryData.getDouble(1).toFloat()
+      )
     } catch (e: Exception) {
       Log.e(TAG, "Cannot load country fallback location", e)
       null
