@@ -35,12 +35,12 @@ vertex {
 fragment {
   const float cloudIntensityDay = 0.62;
   const float cloudIntensityNight = 0.36;
-  const float cloudShadowIntensity = 0.34;
+  const float cloudShadowIntensity = 0.40;
   const float cloudBlurOffset = 0.0075;
   const float cloudMaskBoost = 1.85;
   const float cloudThinBoostMix = 0.65;
-  const float cloudPuffReliefStrength = 0.34;
-  const float cloudPuffOpacityStrength = 0.08;
+  const float cloudPuffReliefStrength = 0.52;
+  const float cloudPuffOpacityStrength = 0.15;
   const float cloudWhiteLift = 0.68;
   const float daySharpenAmount = 0.28;
   const float daySharpenOffset = 0.0016;
@@ -144,7 +144,7 @@ fragment {
   }
 
   float3 cloudShadowLookup(float3 normal) {
-    float angle = 0.00523599;
+    float angle = 0.00733038;
     float cosine = cos(angle);
     float sine = sin(angle);
     return normalize(float3(normal.x, normal.y * cosine + normal.z * sine, -normal.y * sine + normal.z * cosine));
@@ -173,16 +173,16 @@ fragment {
     float cloudShadow = clamp(boostedWeatherShadowMask * mix(0.58, 1.0, cloudShadowDetail) * cloudMaskBoost, 0.0, 1.0);
     float cloudCoverage = smoothstep(0.04, 0.64, cloudColor);
     float cloudShadowCoverage = smoothstep(0.06, 0.58, cloudShadow);
-    float cloudPuffCore = smoothstep(0.40, 0.88, cloudCoverage);
+    float cloudPuffCore = smoothstep(0.35, 0.82, cloudCoverage);
     float cloudPuffDetail = (cloudDetail - 0.50) * cloudPuffCore;
-    float cloudRelief = clamp((cloudColor - cloudShadow) * 2.0 + 0.50 + cloudPuffDetail * cloudPuffReliefStrength, 0.0, 1.0);
+    float cloudRelief = clamp((cloudColor - cloudShadow) * 2.35 + 0.50 + cloudPuffDetail * cloudPuffReliefStrength, 0.0, 1.0);
     float cloudSun = smoothstep(-0.20, 0.80, lightDirection);
 
     float dayCloudOpacity = cloudIntensityDay * cloudCoverage * (0.55 + cloudRelief * 0.35 + cloudPuffCore * cloudDetail * cloudPuffOpacityStrength);
     float nightCloudOpacity = cloudIntensityNight * cloudCoverage * (0.70 + cloudRelief * 0.25);
     float3 dayCloudColor = mix(float3(1.0), float3(0.96, 0.97, 0.99), (1.0 - cloudRelief) * 0.08);
     dayCloudColor = mix(dayCloudColor, float3(1.0), cloudWhiteLift);
-    dayCloudColor = clamp(dayCloudColor * (1.04 + cloudSun * 0.04), 0.0, 1.0);
+    dayCloudColor = clamp(dayCloudColor * (0.97 + cloudRelief * 0.12 + cloudSun * 0.04), 0.0, 1.0);
     float3 nightCloudColor = mix(float3(0.28, 0.31, 0.38), float3(0.36, 0.40, 0.48), cloudRelief);
 
     float daylight = smoothstep(-0.12, 0.30, lightDirection);
