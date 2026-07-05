@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Minimal manifest for the resource/code library; the real components live in
+     src/main/AndroidManifest.xml on the android_binary. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

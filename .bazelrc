@@ -1,0 +1,17 @@
+# Bazel 9 enables Bzlmod by default; MODULE.bazel drives dependency resolution.
+
+# Compile against Java 17 (matches the old Gradle sourceCompatibility) and run
+# build tools on a hermetic JDK 21 (the host default here is JDK 11, which is too
+# old for rules_jvm_external's Java 17 tools).
+build --java_language_version=17
+build --tool_java_language_version=17
+build --java_runtime_version=remotejdk_21
+build --tool_java_runtime_version=remotejdk_21
+
+# Pass the OpenWeather API key into build actions so the generated
+# secrets.xml can embed it. Set it on the shell: OPENWEATHER_API_KEY=xxx bazel build ...
+build --action_env=OPENWEATHER_API_KEY
+
+# Quieter, reproducible-ish output.
+build --verbose_failures
+common --noenable_workspace

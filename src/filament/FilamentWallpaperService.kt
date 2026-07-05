@@ -16,8 +16,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-@AndroidEntryPoint
-class FilamentWallpaperService : WallpaperService() {
+@AndroidEntryPoint(WallpaperService::class)
+class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
   @Inject
   internal lateinit var refreshScheduler: WallpaperRefreshScheduler
 
@@ -25,7 +25,7 @@ class FilamentWallpaperService : WallpaperService() {
   internal lateinit var userLocationEarth: UserLocationEarth
 
   override fun onCreate() {
-    // @AndroidEntryPoint injects the @Inject fields during super.onCreate().
+    // The generated Hilt base class injects the @Inject fields during super.onCreate().
     super.onCreate()
   }
 

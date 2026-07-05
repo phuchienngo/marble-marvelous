@@ -21,13 +21,8 @@ class FilamentMaterialAssetPathsTest {
   }
 
   private fun assetDirectory(): File {
-    val candidates: List<File> =
-      listOf(
-        File("app/src/main/assets"),
-        File("src/main/assets")
-      )
-    return candidates.firstOrNull { file: File ->
-      return@firstOrNull file.isDirectory
-    } ?: error("Unable to find main asset directory from ${File(".").absolutePath}")
+    val dir = File("assets")
+    return dir.takeIf { it.isDirectory }
+      ?: error("Unable to find main asset directory from ${File(".").absolutePath}")
   }
 }

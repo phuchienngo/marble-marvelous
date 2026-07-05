@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+# Assets live in their own package so rules_android derives the packaged asset
+# directory from the target's package name (the `else` branch of
+# _get_unique_assets_dirs in rules_android's busybox.bzl) instead of trying to
+# find "/assets/" in a repo-root path. This lets android_binary consume the
+# assets directly, with no custom symlink rule.
+filegroup(
+    name = "assets",
+    srcs = glob(["**/*"], exclude = ["BUILD.bazel"]),
+)

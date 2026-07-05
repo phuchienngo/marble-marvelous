@@ -55,12 +55,8 @@ class FilamentEarthAssetPathsTest {
   }
 
   private fun earthAssetDirectory(): File {
-    val candidates: List<File> =
-      listOf(
-        File("app/src/main/assets/earth"),
-        File("src/main/assets/earth")
-      )
-    return candidates.firstOrNull { file: File -> file.isDirectory }
+    val dir = File("assets/earth")
+    return dir.takeIf { it.isDirectory }
       ?: error("Unable to find earth asset directory from ${File(".").absolutePath}")
   }
 
