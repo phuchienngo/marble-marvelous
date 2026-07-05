@@ -43,19 +43,11 @@ jobs:
           api-level: 36
           build-tools: 36.0.0
 
-      # Platform-based Android builds (--android_platforms) resolve a CC toolchain
-      # for os:android, provided by rules_android_ndk from a local NDK. Install it
-      # and expose ANDROID_NDK_HOME (read by the android_ndk_repository extension).
       - name: Install Android NDK
         run: |
           sdkmanager "ndk;27.2.12479018"
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
-      # debug.keystore is gitignored (it holds the developer's local debug cert),
-      # so a fresh CI checkout has none. android_binary's debug_signing_keys needs
-      # a keystore to sign //:app, so generate a throwaway one with the standard
-      # Android debug parameters. This only verifies the build packages/signs; the
-      # cert does not need to match the local one for CI.
       - name: Generate debug keystore
         run: |
           keytool -genkeypair -v \
@@ -65,20 +57,17 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -dname "CN=Android Debug,O=Android,C=US"
 
-      - name: Run unit tests
+      - name: Generate user.bazelrc
         run: |
-          bazel test //:app_test \
-            --action_env=JAVA_HOME \
-            --java_runtime_version=17 \
-            --tool_java_runtime_version=17 \
-            --experimental_enable_android_migration_apis=true
+          cat > user.bazelrc <<EOF
+          build --repo_env=ANDROID_HOME=$ANDROID_SDK_ROOT
+          build --repo_env=ANDROID_NDK_HOME=$ANDROID_NDK_HOME
+          build --action_env=JAVA_HOME=$JAVA_HOME
+          build --action_env=OPENWEATHER_API_KEY=dummy_openweather_key_for_ci
+          EOF
+
+      - name: Run unit tests
+        run: bazel test //:app_test
 
       - name: Build release APK
-        run: |
-          bazel build //:app \
-            --action_env=JAVA_HOME \
-            --java_runtime_version=17 \
-            --tool_java_runtime_version=17 \
-            --experimental_enable_android_migration_apis=true \
-            --compilation_mode=opt
-
+        run: bazel build //:app --compilation_mode=opt

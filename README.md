@@ -38,37 +38,25 @@ are here" location marker.
 
 ## Build
 
-Set `ANDROID_HOME` / `ANDROID_NDK_HOME` (and `JAVA_HOME`) and build the release
-APK. The target ABI is set via `--android_platforms=//:android_arm64`, wired as
-the default in `.bazelrc` (replacing the deprecated `--fat_apk_cpu`):
+Copy the user-specific Bazel config template and fill in your local paths/API key:
 
 ```sh
-export ANDROID_HOME=/path/to/android-sdk
-export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.2.12479018
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
-bazel build //:app \
-  --action_env=JAVA_HOME \
-  --java_runtime_version=17 \
-  --tool_java_runtime_version=17 \
-  --experimental_enable_android_migration_apis=true \
-  --compilation_mode=opt
+cp user.bazelrc.template user.bazelrc
+# edit user.bazelrc
+```
 
+Then build the release APK:
+
+```sh
+bazel build //:app --compilation_mode=opt
 adb install -r bazel-bin/app.apk
 ```
 
-If you have an OpenWeather API key, pass it as an environment variable so the
-build can embed it:
+If you prefer to keep paths/keys in environment variables instead of `user.bazelrc`,
+export them in your shell (see the comments in `user.bazelrc.template`).
 
-```sh
-export ANDROID_HOME=/path/to/android-sdk
-export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.2.12479018
-OPENWEATHER_API_KEY=your_key bazel build //:app \
-  --action_env=JAVA_HOME \
-  --java_runtime_version=17 \
-  --tool_java_runtime_version=17 \
-  --experimental_enable_android_migration_apis=true \
-  --compilation_mode=opt
-```
+In CI, `user.bazelrc` is generated automatically with a dummy OpenWeather API key
+so tests and the release build can run without a real secret.
 
 Generated APK:
 

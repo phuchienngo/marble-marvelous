@@ -1,29 +1,14 @@
 *.iml
-.gradle
-/local.properties
 /.idea
 .DS_Store
-/build
-/app/build
-/captures
-.externalNativeBuild
-.cxx
 
-# Bazel output symlinks and local cache
 /bazel-*
 /.buildcache
+/.bazelbsp
 
-# User-specific Bazel configuration
 user.bazelrc
 .bazelrc.user
 
-# IntelliJ / CLion with Bazel plugin
 /.ijwb/
 /.clwb/
-
-# OpenWeather API key resource (injected locally via env var).
-/res/values/secrets.xml
-
-# Local debug keystore copied from ~/.android so Bazel signs with the same
-# cert as the old Gradle build (avoids Play Protect flagging a new cert).
 /debug.keystore

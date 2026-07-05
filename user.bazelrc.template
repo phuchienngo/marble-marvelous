@@ -1,0 +1,25 @@
+# User-specific Bazel configuration.
+# Copy this file to `user.bazelrc` and fill in your own paths/API keys.
+# `user.bazelrc` is gitignored and will be loaded automatically by `.bazelrc`.
+
+# Make Android SDK/NDK discovery env vars visible to repository rules.
+build --repo_env=ANDROID_HOME=/path/to/android-sdk
+build --repo_env=ANDROID_NDK_HOME=/path/to/android-sdk/ndk/<version>
+
+# Make env vars visible to build actions (genrules, Java tools, tests).
+build --action_env=JAVA_HOME=/path/to/jdk-17
+build --action_env=OPENWEATHER_API_KEY=your_openweather_api_key
+
+# For CI, use a dummy value such as `dummy_openweather_key_for_ci`.
+# The build still works; it just falls back to the bundled cloud texture.
+
+# ------------------------------------------------------------------------------
+# Optional local overrides
+# ------------------------------------------------------------------------------
+
+# Uncomment to use a local JDK 17 runtime instead of the hermetic remotejdk_21.
+# build --java_runtime_version=local_jdk
+# build --tool_java_runtime_version=local_jdk
+
+# Uncomment to speed up incremental local builds at the cost of isolation.
+# build --disk_cache=~/.cache/bazel-disk-cache
