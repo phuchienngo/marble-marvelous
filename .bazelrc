@@ -12,6 +12,10 @@ build --tool_java_runtime_version=remotejdk_21
 # secrets.xml can embed it. Set it on the shell: OPENWEATHER_API_KEY=xxx bazel build ...
 build --action_env=OPENWEATHER_API_KEY
 
+# Platform-based Android build (replaces the deprecated --fat_apk_cpu). Targets
+# arm64-v8a via //:android_arm64; resolves the NDK CC toolchain for os:android.
+build --android_platforms=//:android_arm64
+
 # Quieter, reproducible-ish output.
 build --verbose_failures
 common --noenable_workspace

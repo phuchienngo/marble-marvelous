@@ -7,6 +7,18 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files(["debug.keystore"])
 
+# Platform-based Android build target (replaces the deprecated --fat_apk_cpu).
+# Wired as the default via --android_platforms in .bazelrc. The device is
+# arm64-v8a; add more platforms and list them all in --android_platforms to
+# produce a fat APK. https://blog.bazel.build/2023/11/15/android-platforms.html
+platform(
+    name = "android_arm64",
+    constraint_values = [
+        "@platforms//os:android",
+        "@platforms//cpu:arm64",
+    ],
+)
+
 # Kotlin 2.4 language level, targeting JVM 17 bytecode (matches old Gradle build).
 # Registered as root toolchain in MODULE.bazel via //:kotlin_toolchain.
 define_kt_toolchain(

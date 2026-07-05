@@ -3,7 +3,9 @@ module(
     version = "0.0.1",
 )
 
+bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_android", version = "0.7.3")
+bazel_dep(name = "rules_android_ndk", version = "0.1.5")
 bazel_dep(name = "rules_kotlin", version = "2.4.0")
 bazel_dep(name = "rules_jvm_external", version = "7.0")
 bazel_dep(name = "rules_java", version = "9.6.1")
@@ -82,6 +84,21 @@ android_sdk_repository_extension.configure(
 use_repo(android_sdk_repository_extension, "androidsdk")
 
 register_toolchains("@androidsdk//:all")
+
+# ---------------------------------------------------------------------------
+# Android NDK. Provides the C/C++ toolchain that platform-based Android builds
+# (--android_platforms, replacing the deprecated --fat_apk_cpu) resolve for
+# os:android. The app has no first-party native code, but android_binary still
+# resolves a CC toolchain to handle Filament's prebuilt .so. The NDK path comes
+# from the ANDROID_NDK_HOME environment variable.
+# ---------------------------------------------------------------------------
+android_ndk_repository_extension = use_extension(
+    "@rules_android_ndk//:extension.bzl",
+    "android_ndk_repository_extension",
+)
+use_repo(android_ndk_repository_extension, "androidndk")
+
+register_toolchains("@androidndk//:all")
 
 # Custom Kotlin toolchain: JVM 17, language/api level 2.3 (matches Kotlin 2.3.21
 # source). Root-module registration takes precedence over rules_kotlin's default.

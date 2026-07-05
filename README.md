@@ -33,21 +33,24 @@ are here" location marker.
 - Bazel 9.1.1 (pinned in `.bazelversion`).
 - JDK 17 for the Bazel Kotlin/Java toolchains.
 - Android SDK API 36 installed (`android-36` platform and `36.0.0` build-tools).
-- The `ANDROID_HOME` environment variable pointing to the Android SDK root.
+- Android NDK 25b+ installed (arm64 CC toolchain for the platform-based build).
+- `ANDROID_HOME` pointing to the Android SDK root and `ANDROID_NDK_HOME` to the NDK.
 
 ## Build
 
-Set `ANDROID_HOME` (and `JAVA_HOME`) and build the release APK:
+Set `ANDROID_HOME` / `ANDROID_NDK_HOME` (and `JAVA_HOME`) and build the release
+APK. The target ABI is set via `--android_platforms=//:android_arm64`, wired as
+the default in `.bazelrc` (replacing the deprecated `--fat_apk_cpu`):
 
 ```sh
 export ANDROID_HOME=/path/to/android-sdk
+export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.2.12479018
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home
 bazel build //:app \
   --action_env=JAVA_HOME \
   --java_runtime_version=17 \
   --tool_java_runtime_version=17 \
   --experimental_enable_android_migration_apis=true \
-  --fat_apk_cpu=arm64-v8a \
   --compilation_mode=opt
 
 adb install -r bazel-bin/app.apk
@@ -58,12 +61,12 @@ build can embed it:
 
 ```sh
 export ANDROID_HOME=/path/to/android-sdk
+export ANDROID_NDK_HOME=/path/to/android-sdk/ndk/27.2.12479018
 OPENWEATHER_API_KEY=your_key bazel build //:app \
   --action_env=JAVA_HOME \
   --java_runtime_version=17 \
   --tool_java_runtime_version=17 \
   --experimental_enable_android_migration_apis=true \
-  --fat_apk_cpu=arm64-v8a \
   --compilation_mode=opt
 ```
 
@@ -93,6 +96,8 @@ bazel test //:app_test
 |---|---|
 | Bazel | **9.1.1** |
 | rules_android | **0.7.3** |
+| rules_android_ndk | **0.1.5** |
+| Android NDK | **27.2.12479018** |
 | rules_kotlin | **2.4.0** |
 | rules_jvm_external | **7.0** |
 | Kotlin / KSP | **2.4.0** |

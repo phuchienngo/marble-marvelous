@@ -43,6 +43,14 @@ jobs:
           api-level: 36
           build-tools: 36.0.0
 
+      # Platform-based Android builds (--android_platforms) resolve a CC toolchain
+      # for os:android, provided by rules_android_ndk from a local NDK. Install it
+      # and expose ANDROID_NDK_HOME (read by the android_ndk_repository extension).
+      - name: Install Android NDK
+        run: |
+          sdkmanager "ndk;27.2.12479018"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
       # debug.keystore is gitignored (it holds the developer's local debug cert),
       # so a fresh CI checkout has none. android_binary's debug_signing_keys needs
       # a keystore to sign //:app, so generate a throwaway one with the standard
@@ -72,6 +80,5 @@ jobs:
             --java_runtime_version=17 \
             --tool_java_runtime_version=17 \
             --experimental_enable_android_migration_apis=true \
-            --fat_apk_cpu=arm64-v8a \
             --compilation_mode=opt
 
