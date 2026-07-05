@@ -65,10 +65,14 @@ internal class FilamentStars private constructor(
           .add(right.scale(seed.x * halfWidth * STAR_PLANE_FILL))
           .add(up.scale(seed.y * halfHeight * STAR_PLANE_FILL))
       val size: Float = seed.size
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(-size)), seed)
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(-size)), seed)
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(size)), seed)
-      offset = writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(size)), seed)
+      offset =
+        writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(-size)), seed)
+      offset =
+        writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(-size)), seed)
+      offset =
+        writeVertex(vertices, offset, starCenter.add(right.scale(size)).add(up.scale(size)), seed)
+      offset =
+        writeVertex(vertices, offset, starCenter.add(right.scale(-size)).add(up.scale(size)), seed)
     }
     uploadBuffer.clear()
     uploadBuffer.put(vertices)
@@ -161,7 +165,16 @@ internal class FilamentStars private constructor(
           STAR_COUNT * INDICES_PER_STAR
         )
         .material(PRIMITIVE_INDEX, materialInstance)
-        .boundingBox(Box(0.0f, 0.0f, 0.0f, STAR_PLANE_DISTANCE, STAR_PLANE_DISTANCE, STAR_PLANE_DISTANCE))
+        .boundingBox(
+          Box(
+            0.0f,
+            0.0f,
+            0.0f,
+            STAR_PLANE_DISTANCE,
+            STAR_PLANE_DISTANCE,
+            STAR_PLANE_DISTANCE
+          )
+        )
         .culling(false)
         .castShadows(false)
         .receiveShadows(false)

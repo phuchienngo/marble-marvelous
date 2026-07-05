@@ -44,8 +44,10 @@ internal object FilamentG3dbEarthMesh {
       val normalTargetOffset: Int = vertexIndex * FilamentEarthMeshData.LOOKUP_NORMAL_COMPONENTS
 
       positions[positionOffset] = vertexFloats.getFloat(sourceOffset + layout.positionOffset)
-      positions[positionOffset + 1] = vertexFloats.getFloat(sourceOffset + layout.positionOffset + 1)
-      positions[positionOffset + 2] = vertexFloats.getFloat(sourceOffset + layout.positionOffset + 2)
+      positions[positionOffset + 1] =
+        vertexFloats.getFloat(sourceOffset + layout.positionOffset + 1)
+      positions[positionOffset + 2] =
+        vertexFloats.getFloat(sourceOffset + layout.positionOffset + 2)
 
       writeLookupNormal(
         lookupNormals = lookupNormals,
@@ -91,13 +93,16 @@ internal object FilamentG3dbEarthMesh {
           positionOffset = strideFloats
           strideFloats += POSITION_ATTRIBUTE_FLOATS
         }
+
         NORMAL_ATTRIBUTE -> {
           normalOffset = strideFloats
           strideFloats += NORMAL_ATTRIBUTE_FLOATS
         }
+
         TEXCOORD0_ATTRIBUTE -> {
           strideFloats += TEXCOORD0_ATTRIBUTE_FLOATS
         }
+
         else -> error("Unsupported earth.g3db vertex attribute: $attributeName")
       }
     }
@@ -227,6 +232,7 @@ internal object FilamentG3dbEarthMesh {
         FALSE_TYPE -> UbBoolean(false)
         BYTE_TYPE,
         UNSIGNED_BYTE_TYPE -> UbNumber(readUnsignedByte().toDouble())
+
         OLD_SHORT_TYPE -> UbNumber(reader.readShort().toDouble())
         OLD_INT_TYPE -> UbNumber(reader.readInt().toDouble())
         INT_TYPE -> UbNumber(reader.readInt().toDouble())
@@ -235,8 +241,10 @@ internal object FilamentG3dbEarthMesh {
         DOUBLE_TYPE -> UbNumber(reader.readDouble())
         STRING_TYPE,
         LONG_STRING_TYPE -> UbString(parseString(type))
+
         SMALL_DATA_TYPE,
         LARGE_DATA_TYPE -> parseData(type)
+
         else -> error("Unsupported earth.g3db UBJSON type '${type.toInt().toChar()}'")
       }
 

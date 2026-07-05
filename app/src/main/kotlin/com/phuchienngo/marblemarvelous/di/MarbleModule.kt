@@ -7,9 +7,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 @Module
@@ -17,7 +18,7 @@ import javax.inject.Singleton
 internal object MarbleModule {
   @Provides
   @Singleton
-  fun provideOkHttpClient(): OkHttpClient = OkHttpClient()
+  fun provideHttpClient(): HttpClient = HttpClient(CIO)
 
   @Provides
   @Singleton

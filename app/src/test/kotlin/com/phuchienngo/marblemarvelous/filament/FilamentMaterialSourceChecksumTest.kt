@@ -45,8 +45,8 @@ class FilamentMaterialSourceChecksumTest {
       )
       assertEquals(
         "${matFile.name} changed but ${matFile.nameWithoutExtension}.filamat was not recompiled. " +
-          "Run ./gradlew compileFilamentMaterials -Pfilament.matc=/path/to/matc and commit the " +
-          "updated .filamat plus $CHECKSUM_FILE.",
+            "Run ./gradlew compileFilamentMaterials -Pfilament.matc=/path/to/matc and commit the " +
+            "updated .filamat plus $CHECKSUM_FILE.",
         expected,
         sha256(matFile)
       )

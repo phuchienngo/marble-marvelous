@@ -11,7 +11,7 @@ class FilamentMaterialAssetPathsTest {
       setOf(
         FilamentEarthMaterial.ASSET_PATH,
         FilamentStars.MATERIAL_ASSET_PATH
-    )
+      )
 
     for (assetPath in materialAssetPaths) {
       val assetFile = File(assetDirectory(), assetPath)

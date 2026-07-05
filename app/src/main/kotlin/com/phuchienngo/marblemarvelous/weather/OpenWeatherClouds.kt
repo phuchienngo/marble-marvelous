@@ -6,6 +6,12 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import com.phuchienngo.marblemarvelous.di.WeatherDispatcher
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.FACE
+import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.MAX_PARALLEL_TILE_DOWNLOADS
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
+import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -13,12 +19,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.PI
@@ -49,7 +51,7 @@ import kotlin.time.Duration.Companion.seconds
 class OpenWeatherClouds
 @Inject
 constructor(
-  private val httpClient: OkHttpClient,
+  private val httpClient: HttpClient,
   @param:WeatherDispatcher private val defaultDispatcher: CoroutineDispatcher
 ) {
   suspend fun generateCubeFaces(
@@ -166,38 +168,21 @@ constructor(
     apiKey: String
   ): Bitmap? {
     val url: String = "https://tile.openweathermap.org/map/clouds_new/$z/$x/$y.png?appid=$apiKey"
-    val request: Request =
-      Request
-        .Builder()
-        .url(url)
-        .build()
     // A whole-world z=3 fetch is 64 tiles (prefetched concurrently); a single
     // transient failure (429, timeout) must not abort the batch, so retry with a
     // short backoff.
     for (attempt in 0 until TILE_ATTEMPTS) {
       try {
-        httpClient
-          .newCall(request)
-          .execute()
-          .use downloadResponse@{ response: Response ->
-            if (!response.isSuccessful) {
-              Log.w(
-                TAG,
-                "Tile $z/$x/$y -> HTTP ${response.code} (attempt ${attempt + 1})"
-              )
-              return@downloadResponse
-            }
-            val bitmap: Bitmap? =
-              response.body
-                .byteStream()
-                .use decodeTile@{ stream: InputStream ->
-                  return@decodeTile BitmapFactory.decodeStream(stream)
-                }
-            if (bitmap != null) {
-              return bitmap
-            }
-            return@downloadResponse
+        val response: HttpResponse = httpClient.get(url)
+        if (!response.status.isSuccess()) {
+          Log.w(TAG, "Tile $z/$x/$y -> HTTP ${response.status.value} (attempt ${attempt + 1})")
+        } else {
+          val tileBytes: ByteArray = response.bodyAsBytes()
+          val bitmap: Bitmap? = BitmapFactory.decodeByteArray(tileBytes, 0, tileBytes.size)
+          if (bitmap != null) {
+            return bitmap
           }
+        }
       } catch (e: Exception) {
         Log.e(TAG, "Tile $z/$x/$y download failed (attempt ${attempt + 1})", e)
       }

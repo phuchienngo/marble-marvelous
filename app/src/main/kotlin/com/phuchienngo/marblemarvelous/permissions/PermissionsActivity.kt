@@ -11,15 +11,14 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import com.phuchienngo.marblemarvelous.R
 import androidx.core.content.edit
+import com.phuchienngo.marblemarvelous.R
 
 class PermissionsActivity : ComponentActivity() {
   private var permissions: Array<String> = emptyArray()
   private var sharedPreferencesKey: String? = null
   private val requestPermissions: ActivityResultLauncher<Array<String>> =
-    registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-      permissionResults: Map<String, Boolean> ->
+    registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissionResults: Map<String, Boolean> ->
       onPermissionResult(permissionResults)
     }
 

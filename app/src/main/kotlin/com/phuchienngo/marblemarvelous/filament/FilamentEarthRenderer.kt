@@ -28,10 +28,10 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import java.nio.ShortBuffer
-import java.util.Date
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
+import kotlin.time.Instant
 
 internal class FilamentEarthRenderer(
   context: Context,
@@ -231,7 +231,8 @@ internal class FilamentEarthRenderer(
     view.viewport = Viewport(0, 0, viewportWidth, viewportHeight)
 
     val aspectRatio: Double = viewportWidth.toDouble() / viewportHeight.toDouble()
-    val minSideFov: Float = FrustumUtils.vFovToHFov(CAMERA_FOV_DEGREES, REFERENCE_WIDTH, REFERENCE_HEIGHT)
+    val minSideFov: Float =
+      FrustumUtils.vFovToHFov(CAMERA_FOV_DEGREES, REFERENCE_WIDTH, REFERENCE_HEIGHT)
     val verticalFov: Float =
       if (viewportWidth < viewportHeight) {
         FrustumUtils.hFovToVFov(minSideFov, viewportWidth.toFloat(), viewportHeight.toFloat())
@@ -376,10 +377,8 @@ internal class FilamentEarthRenderer(
   }
 
   private fun updateCamera() {
-    val now: Date = DateUtils.now()
-    val utcDate: Date = DateUtils.getUTC(now) ?: now
-    val beginningOfDay: Date = DateUtils.getAtBeginningOfDay(utcDate)
-    val utcDayRatio: Float = (utcDate.time - beginningOfDay.time) / DateUtils.MILLIS_IN_A_DAY
+    val now: Instant = DateUtils.now()
+    val utcDayRatio: Float = DateUtils.utcDayRatio(now)
     val location: GeoLocation = userLocation.lastKnown(requestPermissions = false)
     // Mesh-local direction of the user's location (no rotation): the earth shader
     // works in mesh-local space, so the marker rides the geography as it spins.
@@ -453,11 +452,10 @@ internal class FilamentEarthRenderer(
       return
     }
     lastDateSampleMillis = nowMillis
-    val utcDate: Date = DateUtils.getUTC(DateUtils.now()) ?: DateUtils.now()
-    val beginningOfDay: Date = DateUtils.getAtBeginningOfDay(utcDate)
-    cachedUtcDayRatio = (utcDate.time - beginningOfDay.time) / DateUtils.MILLIS_IN_A_DAY
+    val now: Instant = DateUtils.now()
+    cachedUtcDayRatio = DateUtils.utcDayRatio(now)
     updateSunDirection(
-      dayOfYear = DateUtils.getDayOfYear(utcDate),
+      dayOfYear = DateUtils.utcDayOfYear(now),
       earthRotationRadians = FilamentEarthMotion.realtimeYawRadians(cachedUtcDayRatio)
     )
   }

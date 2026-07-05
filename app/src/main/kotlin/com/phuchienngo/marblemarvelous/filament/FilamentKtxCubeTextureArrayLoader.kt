@@ -116,7 +116,8 @@ internal object FilamentKtxCubeTextureArrayLoader {
       else -> error("Unsupported KTX1 compressed format: $glInternalFormat")
     }
 
-  private fun padding4(value: Int): Int = (FOUR_BYTE_ALIGNMENT - value % FOUR_BYTE_ALIGNMENT) % FOUR_BYTE_ALIGNMENT
+  private fun padding4(value: Int): Int =
+    (FOUR_BYTE_ALIGNMENT - value % FOUR_BYTE_ALIGNMENT) % FOUR_BYTE_ALIGNMENT
 
   @Suppress("DEPRECATION")
   private fun Texture.setTextureArrayLevel(

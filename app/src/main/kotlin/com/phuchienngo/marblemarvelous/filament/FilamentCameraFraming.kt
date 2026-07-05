@@ -2,18 +2,18 @@ package com.phuchienngo.marblemarvelous.filament
 
 import com.phuchienngo.marblemarvelous.math.Vec3
 import com.phuchienngo.marblemarvelous.utils.DateUtils
-import java.util.Date
+import kotlin.time.Instant
 
 internal object FilamentCameraFraming {
   fun offsetFor(
-    date: Date,
+    date: Instant,
     isPreview: Boolean
   ): Vec3 {
     if (isPreview) {
       return PREVIEW_CENTERED_OFFSET
     }
 
-    val localDayRatio: Float = DateUtils.getDayRatio(date)
+    val localDayRatio: Float = DateUtils.localDayRatio(date)
     return when {
       localDayRatio > EVENING_CAMERA_START_RATIO -> LIVE_CENTERED_OFFSET
       localDayRatio > AFTERNOON_CAMERA_START_RATIO -> CAMERA_OFFSET_MEDIUM

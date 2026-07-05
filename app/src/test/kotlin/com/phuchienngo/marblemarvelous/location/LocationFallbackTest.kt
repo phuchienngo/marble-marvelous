@@ -1,6 +1,5 @@
 package com.phuchienngo.marblemarvelous.location
 
-import com.phuchienngo.marblemarvelous.location.GeoLocation
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

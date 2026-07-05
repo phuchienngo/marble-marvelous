@@ -8,6 +8,7 @@ buildscript {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.3.21")
         classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.9")
         classpath("com.google.dagger:hilt-android-gradle-plugin:2.60")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:2.3.21")
     }
 }
 
