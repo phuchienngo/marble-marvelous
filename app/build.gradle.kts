@@ -30,7 +30,7 @@ android {
     defaultConfig {
         applicationId = "com.phuchienngo.marblemarvelous"
         minSdk = 36
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 28
         versionName = "0.0.1"
 
