@@ -1,13 +1,7 @@
 package com.phuchienngo.marblemarvelous
 
 import android.app.Application
-import com.phuchienngo.marblemarvelous.di.DaggerMarbleComponent
-import com.phuchienngo.marblemarvelous.di.MarbleComponent
+import dagger.hilt.android.HiltAndroidApp
 
-class MarbleApplication : Application() {
-  internal val component: MarbleComponent by lazy(LazyThreadSafetyMode.NONE) {
-    DaggerMarbleComponent
-      .factory()
-      .create(applicationContext)
-  }
-}
+@HiltAndroidApp
+class MarbleApplication : Application()

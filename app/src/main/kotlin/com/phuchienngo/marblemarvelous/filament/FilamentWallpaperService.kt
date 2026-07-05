@@ -5,10 +5,10 @@ import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
-import com.phuchienngo.marblemarvelous.MarbleApplication
 import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
 import com.phuchienngo.marblemarvelous.space.AuroraActivityProvider
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +21,7 @@ import javax.inject.Inject
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+@AndroidEntryPoint
 class FilamentWallpaperService : WallpaperService() {
   @Inject
   internal lateinit var openWeatherClouds: OpenWeatherClouds
@@ -33,8 +34,8 @@ class FilamentWallpaperService : WallpaperService() {
   internal lateinit var auroraActivityProvider: AuroraActivityProvider
 
   override fun onCreate() {
+    // @AndroidEntryPoint injects the @Inject fields during super.onCreate().
     super.onCreate()
-    (application as MarbleApplication).component.inject(this)
   }
 
   override fun onCreateEngine(): Engine = FilamentWallpaperEngine()

@@ -1,10 +1,13 @@
 import java.security.MessageDigest
 import java.util.Properties
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
 }
 
 val localProperties = Properties()
@@ -14,7 +17,7 @@ if (localPropertiesFile.isFile) {
         localProperties.load(inputStream)
     }
 }
-val localOpenWeatherApiKey = localProperties.getProperty("OPENWEATHER_API_KEY", "")
+val localOpenWeatherApiKey: String = localProperties.getProperty("OPENWEATHER_API_KEY", "")
 val openWeatherApiKeyProvider = providers
     .gradleProperty("OPENWEATHER_API_KEY")
     .orElse(providers.environmentVariable("OPENWEATHER_API_KEY"))
@@ -22,7 +25,7 @@ val openWeatherApiKeyProvider = providers
 
 android {
     namespace = "com.phuchienngo.marblemarvelous"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.phuchienngo.marblemarvelous"
@@ -58,6 +61,7 @@ android {
 
     buildFeatures {
         buildConfig = false
+        resValues = true
     }
 
     lint {
@@ -72,33 +76,39 @@ kotlin {
     }
 }
 
-// Compiles the Filament material sources (src/main/materials/*.mat) into the
-// precompiled Vulkan/mobile packages shipped in assets (assets/filament/*.filamat)
-// using the Filament `matc` tool, and records each source's checksum so the
-// drift-detection unit test can catch a .mat edited without recompiling.
-// Provide matc via -Pfilament.matc=/path/to/matc or the FILAMENT_MATC env var.
-tasks.register("compileFilamentMaterials") {
-    group = "filament"
-    description = "Compiles src/main/materials/*.mat into assets/filament/*.filamat via matc."
-    doLast {
-        val matc: String =
-            (project.findProperty("filament.matc") as String?)
-                ?: System.getenv("FILAMENT_MATC")
+abstract class CompileFilamentMaterialsTask : DefaultTask() {
+    @get:Inject
+    abstract val execOperations: ExecOperations
+
+    @get:Optional
+    @get:Input
+    abstract val matc: Property<String>
+
+    @get:Internal
+    abstract val materialsDir: DirectoryProperty
+
+    @get:Internal
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun compile() {
+        val matcPath: String =
+            matc.orNull
                 ?: throw GradleException(
                     "matc not found. Pass -Pfilament.matc=/path/to/matc or set FILAMENT_MATC."
                 )
-        val materialsDir = file("src/main/materials")
-        val outputDir = file("src/main/assets/filament").apply { mkdirs() }
+        val materialsDirFile = materialsDir.get().asFile
+        val outputDirFile = outputDir.get().asFile.apply { mkdirs() }
         val matFiles =
-            materialsDir.listFiles { candidate -> candidate.extension == "mat" }
+            materialsDirFile.listFiles { candidate -> candidate.extension == "mat" }
                 ?.sortedBy { it.name }
                 .orEmpty()
         val checksums = StringBuilder()
         matFiles.forEach { matFile ->
-            val outputFile = outputDir.resolve(matFile.nameWithoutExtension + ".filamat")
-            exec {
+            val outputFile = outputDirFile.resolve(matFile.nameWithoutExtension + ".filamat")
+            execOperations.exec {
                 commandLine(
-                    matc,
+                    matcPath,
                     "-a", "vulkan",
                     "-p", "mobile",
                     "-o", outputFile.absolutePath,
@@ -112,30 +122,28 @@ tasks.register("compileFilamentMaterials") {
                     .joinToString("") { hashByte: Byte -> "%02x".format(hashByte) }
             checksums.append("${matFile.name}=$digest\n")
         }
-        materialsDir.resolve("checksums.sha256").writeText(checksums.toString())
+        materialsDirFile.resolve("checksums.sha256").writeText(checksums.toString())
     }
 }
 
+tasks.register<CompileFilamentMaterialsTask>("compileFilamentMaterials") {
+    group = "filament"
+    description = "Compiles src/main/materials/*.mat into assets/filament/*.filamat via matc."
+    matc.set(
+        providers.gradleProperty("filament.matc")
+            .orElse(providers.environmentVariable("FILAMENT_MATC"))
+    )
+    materialsDir.set(layout.projectDirectory.dir("src/main/materials"))
+    outputDir.set(layout.projectDirectory.dir("src/main/assets/filament"))
+}
+
 dependencies {
-    val daggerVersion = "2.60"
-    val filamentVersion = "1.72.0"
-    val okhttpVersion = "5.4.0"
-
-    // --- AndroidX Activity for the runtime-permission screen (ActivityResult API). ---
     implementation("androidx.activity:activity:1.13.0")
-
-    // --- Filament renderer for direct live-wallpaper rendering. ---
-    implementation("com.google.android.filament:filament-android:$filamentVersion")
-
-    // --- Kotlin coroutines (background weather fetches) ---
+    implementation("com.google.android.filament:filament-android:1.72.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
-
-    // --- Dagger dependency graph for wallpaper runtime dependencies ---
-    implementation("com.google.dagger:dagger:$daggerVersion")
-    ksp("com.google.dagger:dagger-compiler:$daggerVersion")
-
-    // --- OkHttp for OpenWeather cloud-tile downloads ---
-    implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
-
+    implementation("com.google.dagger:hilt-android:2.60")
+    ksp("com.google.dagger:hilt-android-compiler:2.60")
+    compileOnly("com.google.errorprone:error_prone_annotations:2.50.0")
+    implementation("com.squareup.okhttp3:okhttp:5.4.0")
     testImplementation("junit:junit:4.13.2")
 }
