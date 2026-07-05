@@ -215,6 +215,9 @@ class FilamentWallpaperService : WallpaperService() {
           renderOnce()
         }
       } catch (throwable: Throwable) {
+        if (throwable is CancellationException) {
+          throw throwable
+        }
         Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
       }
     }

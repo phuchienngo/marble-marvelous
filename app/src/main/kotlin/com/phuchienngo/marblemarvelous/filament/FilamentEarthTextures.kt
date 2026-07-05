@@ -12,6 +12,7 @@ import java.io.FileInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Calendar
+import java.util.zip.CRC32
 
 internal class FilamentEarthTextures private constructor(
   private val dayMap: Texture,
@@ -20,6 +21,10 @@ internal class FilamentEarthTextures private constructor(
   private val cloudDetailMap: Texture,
   private val sampler: TextureSampler
 ) {
+  // CRC of the six cached faces currently uploaded as the cloud mask. Lets a
+  // repeat reload skip the GPU rebuild/swap when the faces are unchanged.
+  private var cloudMaskSignature: Long? = null
+
   fun bind(materialInstance: MaterialInstance) {
     materialInstance.setParameter(FilamentEarthMaterial.DAY_MAP, dayMap, sampler)
     materialInstance.setParameter(FilamentEarthMaterial.NIGHT_MAP, nightMap, sampler)
@@ -47,8 +52,13 @@ internal class FilamentEarthTextures private constructor(
     engine: Engine,
     materialInstance: MaterialInstance
   ): Boolean {
-    val cloudBuffer: ByteBuffer = readCloudFacesBuffer(context) ?: return false
-    val newCloudMaskMap: Texture = buildCloudMaskTexture(engine, cloudBuffer)
+    val cachedFaces: CachedFaces = readCloudFacesBuffer(context) ?: return false
+    if (cachedFaces.checksum == cloudMaskSignature) {
+      // Freshly cached faces are byte-identical to what's already shown; skip
+      // the texture rebuild/swap and the follow-up render.
+      return false
+    }
+    val newCloudMaskMap: Texture = buildCloudMaskTexture(engine, cachedFaces.buffer)
     val previousCloudMaskMap: Texture = cloudMaskMap
 
     try {
@@ -62,6 +72,7 @@ internal class FilamentEarthTextures private constructor(
       throw throwable
     }
     cloudMaskMap = newCloudMaskMap
+    cloudMaskSignature = cachedFaces.checksum
 
     if (previousCloudMaskMap !== cloudDetailMap) {
       engine.destroyTexture(previousCloudMaskMap)
@@ -120,31 +131,37 @@ internal class FilamentEarthTextures private constructor(
       return FilamentKtxCubeTextureArrayLoader.createTexture(engine, uploadBuffer)
     }
 
-    /** Reads the six cached faces into one direct buffer, or null if any is missing. */
-    private suspend fun readCloudFacesBuffer(context: Context): ByteBuffer? {
-      val rawFaces: Array<File> =
-        Array(FACE_NAMES.size) { faceIndex: Int ->
-          return@Array File(
-            context.cacheDir,
-            FACE_NAMES[faceIndex] + RAW_FACE_VERSION + RAW_FACE_EXTENSION
-          )
+    /**
+     * Reads the six cached faces into one direct buffer (with a content
+     * checksum), or null if any is missing. The whole read — readability
+     * checks, the direct allocation, the six stream copies and the checksum —
+     * runs off the main thread in a single IO context.
+     */
+    private suspend fun readCloudFacesBuffer(context: Context): CachedFaces? =
+      withContext(Dispatchers.IO) {
+        val rawFaces: Array<File> =
+          Array(FACE_NAMES.size) { faceIndex: Int ->
+            return@Array File(
+              context.cacheDir,
+              FACE_NAMES[faceIndex] + RAW_FACE_VERSION + RAW_FACE_EXTENSION
+            )
+          }
+        for (file: File in rawFaces) {
+          if (!isReadableRawFace(file)) {
+            return@withContext null
+          }
         }
-      for (file: File in rawFaces) {
-        if (!isReadableRawFace(file)) {
-          return null
-        }
-      }
 
-      val uploadBuffer: ByteBuffer =
-        ByteBuffer
-          .allocateDirect(FACE_NAMES.size * FACE_SIZE * FACE_SIZE)
-          .order(ByteOrder.nativeOrder())
-      for (file: File in rawFaces) {
-        readFileInto(file, uploadBuffer)
+        val uploadBuffer: ByteBuffer =
+          ByteBuffer
+            .allocateDirect(FACE_NAMES.size * FACE_SIZE * FACE_SIZE)
+            .order(ByteOrder.nativeOrder())
+        for (file: File in rawFaces) {
+          readFileInto(file, uploadBuffer)
+        }
+        uploadBuffer.flip()
+        CachedFaces(uploadBuffer, checksumOf(uploadBuffer))
       }
-      uploadBuffer.flip()
-      return uploadBuffer
-    }
 
     /** Filament resource creation — must run on the engine (render) thread. */
     private fun buildCloudMaskTexture(
@@ -166,11 +183,20 @@ internal class FilamentEarthTextures private constructor(
       return texture
     }
 
-    /** Streams one face into [buffer] off the main thread. */
-    private suspend fun readFileInto(
+    /** CRC over the buffer's remaining bytes; restores its position afterwards. */
+    private fun checksumOf(buffer: ByteBuffer): Long {
+      val checksum = CRC32()
+      buffer.mark()
+      checksum.update(buffer)
+      buffer.reset()
+      return checksum.value
+    }
+
+    /** Streams one face into [buffer]. Caller runs it inside an IO context. */
+    private fun readFileInto(
       file: File,
       buffer: ByteBuffer
-    ) = withContext(Dispatchers.IO) {
+    ) {
       FileInputStream(file).use { inputStream ->
         val channel = inputStream.channel
         while (buffer.hasRemaining() && channel.read(buffer) >= 0) {
@@ -211,6 +237,11 @@ internal class FilamentEarthTextures private constructor(
         descriptor
       )
     }
+
+    private class CachedFaces(
+      val buffer: ByteBuffer,
+      val checksum: Long
+    )
 
     private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
     private const val FACE_SIZE: Int = 512
