@@ -5,10 +5,7 @@ import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
-import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
 import com.phuchienngo.marblemarvelous.location.UserLocationEarth
-import com.phuchienngo.marblemarvelous.space.AuroraActivityProvider
-import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -16,23 +13,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 @AndroidEntryPoint
 class FilamentWallpaperService : WallpaperService() {
   @Inject
-  internal lateinit var openWeatherClouds: OpenWeatherClouds
-
-  @Inject
-  @field:OpenWeatherApiKey
-  internal lateinit var openWeatherApiKey: String
-
-  @Inject
-  internal lateinit var auroraActivityProvider: AuroraActivityProvider
+  internal lateinit var refreshScheduler: WallpaperRefreshScheduler
 
   @Inject
   internal lateinit var userLocationEarth: UserLocationEarth
@@ -52,10 +39,9 @@ class FilamentWallpaperService : WallpaperService() {
     private var isDestroyed = false
     private var isSurfaceReady = false
     private var isVisible = false
-    private val cloudRefreshScope: CoroutineScope =
+    private val refreshScope: CoroutineScope =
       CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var cloudRefreshJob: Job? = null
-    private var auroraRefreshJob: Job? = null
+    private var refreshJob: Job? = null
 
     override fun onCreate(surfaceHolder: SurfaceHolder) {
       super.onCreate(surfaceHolder)
@@ -103,20 +89,18 @@ class FilamentWallpaperService : WallpaperService() {
       super.onVisibilityChanged(visible)
       isVisible = visible
       renderer?.setPaused(!visible)
-      // Only poll the aurora feed while visible: no network wake-ups for a
-      // wallpaper the user isn't looking at.
-      if (visible && renderer != null) {
-        startAuroraRefresh()
-      } else if (!visible) {
-        stopAuroraRefresh()
-      }
       updateFrameLoop()
     }
 
     override fun onDestroy() {
       isDestroyed = true
       stopFrameLoop()
-      cloudRefreshScope.cancel()
+      // Balance the start() from ensureRenderer() so the shared scheduler can
+      // stop its loop once the last engine is gone.
+      if (refreshJob != null) {
+        refreshScheduler.stop()
+      }
+      refreshScope.cancel()
       destroyRenderer()
       super.onDestroy()
     }
@@ -144,10 +128,7 @@ class FilamentWallpaperService : WallpaperService() {
           .also { newRenderer ->
             newRenderer.setPaused(!isVisible)
             renderer = newRenderer
-            startCloudRefresh()
-            if (isVisible) {
-              startAuroraRefresh()
-            }
+            startRefresh()
           }
       } catch (throwable: Throwable) {
         Log.e(TAG, "Failed to create Filament renderer", throwable)
@@ -180,35 +161,37 @@ class FilamentWallpaperService : WallpaperService() {
       }
     }
 
-    private fun startCloudRefresh() {
-      val apiKey: String = openWeatherApiKey
-      if (apiKey.isBlank()) {
+    // The hourly clouds+aurora fetch is owned by the shared, app-scoped
+    // WallpaperRefreshScheduler; the engine just observes its results and
+    // applies them to its own renderer. cloudRevision's initial value also
+    // drives the first load of the already-cached clouds, so a fresh engine
+    // doesn't linger on the bundled fallback while the network refresh runs.
+    private fun startRefresh() {
+      if (refreshJob != null) {
         return
       }
-      if (cloudRefreshJob?.isActive == true) {
-        return
-      }
-      cloudRefreshJob =
-        cloudRefreshScope.launch {
-          // Show the last cached real clouds right away (read off-main) so a
-          // fresh engine doesn't linger on the bundled fallback while the
-          // network refresh runs.
-          reloadCloudMaskAndRender()
-          val generated: Boolean =
-            try {
-              openWeatherClouds.generateCubeFaces(applicationContext, apiKey)
-            } catch (throwable: Throwable) {
-              if (throwable is CancellationException) {
-                throw throwable
-              }
-              Log.e(TAG, "Failed to generate OpenWeather cloud cache", throwable)
-              return@launch
+      refreshScheduler.start()
+      refreshJob =
+        refreshScope.launch {
+          launch {
+            refreshScheduler.cloudRevision.collect {
+              reloadCloudMaskAndRender()
             }
-          if (!generated || isDestroyed) {
-            return@launch
           }
-          reloadCloudMaskAndRender()
+          launch {
+            refreshScheduler.auroraActivity.collect { activity ->
+              applyAuroraActivity(activity)
+            }
+          }
         }
+    }
+
+    private fun applyAuroraActivity(activity: Float?) {
+      if (activity == null || isDestroyed) {
+        return
+      }
+      renderer?.setAuroraActivity(activity)
+      renderOnce()
     }
 
     private suspend fun reloadCloudMaskAndRender() {
@@ -226,37 +209,6 @@ class FilamentWallpaperService : WallpaperService() {
         }
         Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
       }
-    }
-
-    private fun startAuroraRefresh() {
-      if (auroraRefreshJob?.isActive == true) {
-        return
-      }
-      auroraRefreshJob =
-        cloudRefreshScope.launch {
-          while (true) {
-            val activity: Float? =
-              try {
-                auroraActivityProvider.currentActivity()
-              } catch (throwable: Throwable) {
-                if (throwable is CancellationException) {
-                  throw throwable
-                }
-                Log.e(TAG, "Failed to fetch aurora activity", throwable)
-                null
-              }
-            if (activity != null && !isDestroyed) {
-              renderer?.setAuroraActivity(activity)
-              renderOnce()
-            }
-            delay(AURORA_REFRESH_INTERVAL_MILLIS)
-          }
-        }
-    }
-
-    private fun stopAuroraRefresh() {
-      auroraRefreshJob?.cancel()
-      auroraRefreshJob = null
     }
 
     private fun renderOnce() {
@@ -333,7 +285,6 @@ class FilamentWallpaperService : WallpaperService() {
   }
 
   companion object {
-    private val AURORA_REFRESH_INTERVAL_MILLIS: Duration = 1800.seconds
     private const val CLEAR_SURFACE_FRAME_RATE: Float = 0.0f
     private const val MILLIS_PER_SECOND: Long = 1000L
     private const val TAG: String = "FilamentWallpaper"
