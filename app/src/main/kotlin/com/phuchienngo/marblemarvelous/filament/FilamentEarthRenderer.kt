@@ -35,7 +35,8 @@ import kotlin.math.sin
 
 internal class FilamentEarthRenderer(
   context: Context,
-  private val isPreview: Boolean
+  private val isPreview: Boolean,
+  private val userLocation: UserLocationEarth
 ) {
   private val engine: Engine
   private val entityManager: EntityManager
@@ -53,7 +54,6 @@ internal class FilamentEarthRenderer(
   private val vertexBuffer: VertexBuffer
   private val indexBuffer: IndexBuffer
   private val stars: FilamentStars
-  private val userLocation: UserLocationEarth
   private val skybox: Skybox
   private var cameraAspectRatio: Float = 1.0f
   private var cameraVerticalFovDegrees: Float = CAMERA_FOV_DEGREES
@@ -121,10 +121,6 @@ internal class FilamentEarthRenderer(
         engine.destroyCameraComponent(cameraEntity)
       }
       view.camera = camera
-      userLocation = UserLocationEarth(context)
-      cleanupStack.register {
-        userLocation.dispose()
-      }
 
       val mesh: FilamentEarthMeshData =
         context.assets.open(EARTH_MODEL_ASSET).use { input ->
@@ -290,7 +286,6 @@ internal class FilamentEarthRenderer(
 
   fun destroy() {
     detachSurface()
-    userLocation.dispose()
     scene.removeEntity(earthEntity)
     scene.removeEntity(stars.entity)
     stars.destroy(engine, entityManager)

@@ -6,6 +6,7 @@ import android.view.Choreographer
 import android.view.Surface
 import android.view.SurfaceHolder
 import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
+import com.phuchienngo.marblemarvelous.location.UserLocationEarth
 import com.phuchienngo.marblemarvelous.space.AuroraActivityProvider
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds
 import dagger.hilt.android.AndroidEntryPoint
@@ -32,6 +33,9 @@ class FilamentWallpaperService : WallpaperService() {
 
   @Inject
   internal lateinit var auroraActivityProvider: AuroraActivityProvider
+
+  @Inject
+  internal lateinit var userLocationEarth: UserLocationEarth
 
   override fun onCreate() {
     // @AndroidEntryPoint injects the @Inject fields during super.onCreate().
@@ -134,7 +138,8 @@ class FilamentWallpaperService : WallpaperService() {
       return try {
         FilamentEarthRenderer(
           context = applicationContext,
-          isPreview = isPreview
+          isPreview = isPreview,
+          userLocation = userLocationEarth
         )
           .also { newRenderer ->
             newRenderer.setPaused(!isVisible)

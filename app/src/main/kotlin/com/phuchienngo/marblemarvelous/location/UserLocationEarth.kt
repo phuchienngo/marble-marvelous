@@ -9,16 +9,22 @@ import android.util.Log
 import com.phuchienngo.marblemarvelous.R
 import com.phuchienngo.marblemarvelous.permissions.LocationPermissions
 import com.phuchienngo.marblemarvelous.permissions.PermissionsListener
+import dagger.hilt.android.qualifiers.ApplicationContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import java.util.Locale
 import java.util.Scanner
 import java.util.TimeZone
+import javax.inject.Inject
+import javax.inject.Singleton
 import androidx.core.content.edit
 
-class UserLocationEarth(
-  private val context: Context
+@Singleton
+class UserLocationEarth
+@Inject
+constructor(
+  @param:ApplicationContext private val context: Context
 ) : PermissionsListener {
   private val locationManager: LocationManager =
     context.getSystemService("location") as LocationManager
@@ -111,10 +117,6 @@ class UserLocationEarth(
     if (key == "location") {
       permissionsAccepted = true
     }
-  }
-
-  fun dispose() {
-    locationPermissions.dispose()
   }
 
   private fun getSharedPreferences() =

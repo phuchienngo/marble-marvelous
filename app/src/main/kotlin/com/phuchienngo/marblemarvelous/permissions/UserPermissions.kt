@@ -62,11 +62,6 @@ abstract class UserPermissions(
     }
   }
 
-  fun dispose() {
-    listener = null
-    unregister()
-  }
-
   fun requestPermissions() {
     if (!permissionsGranted.get() && !permissionsAsked.get()) {
       val secureContext: Context = context.createDeviceProtectedStorageContext()
