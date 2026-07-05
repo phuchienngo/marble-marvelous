@@ -1,0 +1,216 @@
+load("@rules_android//android:rules.bzl", "android_binary")
+load("@rules_kotlin//kotlin:android.bzl", "kt_android_library")
+load("@rules_kotlin//kotlin:core.bzl", "define_kt_toolchain", "kt_compiler_plugin", "kt_ksp_plugin")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(["debug.keystore"])
+
+# Kotlin 2.4 language level, targeting JVM 17 bytecode (matches old Gradle build).
+# Registered as root toolchain in MODULE.bazel via //:kotlin_toolchain.
+define_kt_toolchain(
+    name = "kotlin_toolchain",
+    api_version = "2.4",
+    jvm_target = "17",
+    language_version = "2.4",
+)
+
+kt_compiler_plugin(
+    name = "serialization_plugin",
+    id = "org.jetbrains.kotlinx.serialization",
+    deps = ["@maven//:org_jetbrains_kotlin_kotlin_serialization_compiler_plugin"],
+)
+
+kt_ksp_plugin(
+    name = "hilt_ksp",
+    generates_java = True,
+    processor_class = "dagger.hilt.processor.internal.root.HiltProcessor",
+    deps = [
+        "@maven//:com_google_dagger_hilt_android_compiler",
+        "@maven//:com_google_dagger_hilt_core",
+        "@maven//:com_google_dagger_dagger",
+        "@maven//:com_google_dagger_dagger_compiler",
+    ],
+)
+
+genrule(
+    name = "secrets_xml",
+    outs = ["res/values/secrets.xml"],
+    cmd_bash = """
+        mkdir -p $(@D)
+        key="$${OPENWEATHER_API_KEY:-}"
+        cat > $@ <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="openweather_api_key" translatable="false">$${key}</string>
+</resources>
+EOF
+    """,
+    visibility = ["//visibility:private"],
+)
+
+kt_android_library(
+    name = "app_lib",
+    srcs = glob(["src/**/*.kt"]),
+    custom_package = "com.phuchienngo.marblemarvelous",
+    manifest = "LibraryManifest.xml",
+    plugins = [
+        ":serialization_plugin",
+        ":hilt_ksp",
+    ],
+    resource_files = glob(
+        ["res/**"],
+        exclude = ["res/values/secrets.xml"],
+    ) + [":secrets_xml"],
+    deps = [
+        "@maven//:androidx_activity_activity",
+        "@maven//:androidx_concurrent_concurrent_futures",
+        "@maven//:com_google_android_filament_filament_android",
+        "@maven//:com_google_dagger_dagger",
+        "@maven//:com_google_dagger_hilt_android",
+        "@maven//:com_google_dagger_hilt_core",
+        "@maven//:com_google_errorprone_error_prone_annotations",
+        "@maven//:com_google_guava_listenablefuture",
+        "@maven//:io_ktor_ktor_client_cio_jvm",
+        "@maven//:io_ktor_ktor_client_core_jvm",
+        "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_android",
+        "@maven//:org_jetbrains_kotlinx_kotlinx_datetime_jvm",
+        "@maven//:org_jetbrains_kotlinx_kotlinx_serialization_json_jvm",
+    ],
+)
+
+android_binary(
+    name = "app",
+    assets = ["//assets:assets"],
+    assets_dir = "",
+    custom_package = "com.phuchienngo.marblemarvelous",
+    debug_signing_keys = ["debug.keystore"],
+    manifest = "AndroidManifest.xml",
+    manifest_values = {
+        "applicationId": "com.phuchienngo.marblemarvelous",
+        "minSdkVersion": "36",
+        "targetSdkVersion": "36",
+        "versionCode": "28",
+        "versionName": "0.0.1",
+    },
+    deps = [":app_lib"],
+)
+
+_TEST_DEPS = [
+    "@maven//:junit_junit",
+    "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_android",
+]
+
+kt_jvm_test(
+    name = "EarthLocationMathTest",
+    srcs = ["test/earth/EarthLocationMathTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.earth.EarthLocationMathTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FailureCleanupStackTest",
+    srcs = ["test/filament/FailureCleanupStackTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FailureCleanupStackTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentCameraFramingTest",
+    srcs = ["test/filament/FilamentCameraFramingTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentCameraFramingTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentEarthAssetPathsTest",
+    srcs = ["test/filament/FilamentEarthAssetPathsTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthAssetPathsTest",
+    data = ["//assets:assets"],
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentEarthMotionTest",
+    srcs = ["test/filament/FilamentEarthMotionTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthMotionTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentG3dbEarthMeshTest",
+    srcs = ["test/filament/FilamentG3dbEarthMeshTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentG3dbEarthMeshTest",
+    data = ["//assets:assets"],
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentMaterialAssetPathsTest",
+    srcs = ["test/filament/FilamentMaterialAssetPathsTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentMaterialAssetPathsTest",
+    data = ["//assets:assets"],
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentMaterialSourceChecksumTest",
+    srcs = ["test/filament/FilamentMaterialSourceChecksumTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentMaterialSourceChecksumTest",
+    data = [
+        "materials/checksums.sha256",
+        "materials/earth.mat",
+        "materials/stars.mat",
+    ],
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "FilamentSunDirectionTest",
+    srcs = ["test/filament/FilamentSunDirectionTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentSunDirectionTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "LocationFallbackTest",
+    srcs = ["test/location/LocationFallbackTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.location.LocationFallbackTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "OpenWeatherCloudsTest",
+    srcs = ["test/weather/OpenWeatherCloudsTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.weather.OpenWeatherCloudsTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+test_suite(
+    name = "app_test",
+    tests = [
+        ":EarthLocationMathTest",
+        ":FailureCleanupStackTest",
+        ":FilamentCameraFramingTest",
+        ":FilamentEarthAssetPathsTest",
+        ":FilamentEarthMotionTest",
+        ":FilamentG3dbEarthMeshTest",
+        ":FilamentMaterialAssetPathsTest",
+        ":FilamentMaterialSourceChecksumTest",
+        ":FilamentSunDirectionTest",
+        ":LocationFallbackTest",
+        ":OpenWeatherCloudsTest",
+    ],
+)

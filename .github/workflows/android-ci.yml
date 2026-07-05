@@ -18,33 +18,46 @@ concurrency:
 
 jobs:
   build:
-    name: Unit tests and release build on ARM64
-    runs-on: macos-15
-    timeout-minutes: 35
+    name: Unit tests and release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
-          cache: gradle
+          java-version: "17"
 
-      - name: Verify ARM64 runner
+      - name: Set up Bazel
+        uses: bazelbuild/setup-bazelisk@v3
+        with:
+          bazelisk-version: "1.20.0"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 36
+          build-tools: 36.0.0
+
+      - name: Run unit tests
         run: |
-          test "$(uname -m)" = "arm64"
-          uname -a
+          bazel test //:app_test \
+            --action_env=JAVA_HOME \
+            --java_runtime_version=17 \
+            --tool_java_runtime_version=17 \
+            --experimental_enable_android_migration_apis=true
 
-      - name: Install Android SDK 36
+      - name: Build release APK
         run: |
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "platform-tools"
+          bazel build //:app \
+            --action_env=JAVA_HOME \
+            --java_runtime_version=17 \
+            --tool_java_runtime_version=17 \
+            --experimental_enable_android_migration_apis=true \
+            --fat_apk_cpu=arm64-v8a \
+            --compilation_mode=opt
 
-      - name: Run unit tests and release build
-        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease --no-daemon --stacktrace -Dorg.gradle.java.home="$JAVA_HOME"

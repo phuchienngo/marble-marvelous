@@ -1,0 +1,88 @@
+module(
+    name = "marble_marvelous",
+    version = "0.0.1",
+)
+
+bazel_dep(name = "rules_android", version = "0.7.3")
+bazel_dep(name = "rules_kotlin", version = "2.4.0")
+bazel_dep(name = "rules_jvm_external", version = "7.0")
+bazel_dep(name = "rules_java", version = "9.6.1")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+
+# ---------------------------------------------------------------------------
+# Maven dependencies (mirror of the old Gradle `dependencies { }` block).
+#
+# Hilt is kept (no Gradle plugin mode): the app uses kapt with the
+# hilt-android-compiler processor and the generated Hilt_* base classes.
+# The kotlinx-serialization compiler plugin is applied via kt_compiler_plugin.
+# ---------------------------------------------------------------------------
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "maven",
+    artifacts = [
+        # AndroidX (direct + pins to resolve Hilt 2.60 transitive conflicts).
+        "androidx.activity:activity:1.13.0",
+        "androidx.concurrent:concurrent-futures:1.3.0",
+        "androidx.core:core:1.19.0",
+        "androidx.core:core-ktx:1.19.0",
+        "androidx.fragment:fragment:1.8.9",
+        "androidx.lifecycle:lifecycle-common:2.11.0",
+        "androidx.lifecycle:lifecycle-livedata-core:2.11.0",
+        "androidx.lifecycle:lifecycle-runtime:2.11.0",
+        "androidx.lifecycle:lifecycle-viewmodel:2.11.0",
+        "androidx.lifecycle:lifecycle-viewmodel-savedstate:2.11.0",
+        "androidx.savedstate:savedstate:1.5.0",
+        "com.google.android.filament:filament-android:1.72.0",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0",
+        "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0",
+        "org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.8.0",
+        "io.ktor:ktor-client-core-jvm:3.5.1",
+        "io.ktor:ktor-client-cio-jvm:3.5.1",
+        "com.google.errorprone:error_prone_annotations:2.50.0",
+        "com.google.dagger:hilt-android:2.60",
+        "com.google.dagger:hilt-android-compiler:2.60",
+        "com.google.dagger:hilt-core:2.60",
+        "com.google.dagger:dagger:2.60",
+        "com.google.dagger:dagger-compiler:2.60",
+        "com.google.guava:listenablefuture:1.0",
+        "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin:2.4.0",
+        "junit:junit:4.13.2",
+    ],
+    fetch_sources = True,
+    known_contributing_modules = ["protobuf"],
+    lock_file = "//:maven_install.json",
+    repositories = [
+        "https://maven.google.com",
+        "https://repo1.maven.org/maven2",
+    ],
+    # Directly listed artifacts win over transitive version conflicts.
+    version_conflict_policy = "pinned",
+    # Bazel 9 dropped the native Android rules, so consume the Filament .aar via
+    # the Starlark aar_import from rules_android.
+    use_starlark_android_rules = True,
+)
+use_repo(maven, "maven", "unpinned_maven")
+
+# ---------------------------------------------------------------------------
+# Android SDK. Pinned to API 36 / build-tools 36.0.0 (the connected device is
+# API 36; the installed `android-37.0` platform dir has a `.0` suffix that trips
+# up the resolver, so we avoid it).
+# ---------------------------------------------------------------------------
+android_sdk_repository_extension = use_extension(
+    "@rules_android//rules/android_sdk_repository:rule.bzl",
+    "android_sdk_repository_extension",
+)
+android_sdk_repository_extension.configure(
+    # path is intentionally left empty so the rule resolves the SDK from the
+    # ANDROID_HOME environment variable. This keeps the repo machine-agnostic.
+    path = "",
+    api_level = 36,
+    build_tools_version = "36.0.0",
+)
+use_repo(android_sdk_repository_extension, "androidsdk")
+
+register_toolchains("@androidsdk//:all")
+
+# Custom Kotlin toolchain: JVM 17, language/api level 2.3 (matches Kotlin 2.3.21
+# source). Root-module registration takes precedence over rules_kotlin's default.
+register_toolchains("//:kotlin_toolchain")

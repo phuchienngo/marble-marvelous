@@ -51,11 +51,9 @@ class FilamentG3dbEarthMeshTest {
   }
 
   private fun earthAsset(): File {
-    val moduleRelativeAsset = File("src/main/assets/earth/earth.g3db")
-    if (moduleRelativeAsset.exists()) {
-      return moduleRelativeAsset
-    }
-    return File("app/src/main/assets/earth/earth.g3db")
+    val file = File("assets/earth/earth.g3db")
+    return file.takeIf { it.exists() }
+      ?: error("Unable to find earth.g3db from ${File(".").absolutePath}")
   }
 
   companion object {
