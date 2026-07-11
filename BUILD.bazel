@@ -145,12 +145,6 @@ kt_jvm_test(
     name = "WallpaperLifecycleRegressionTest",
     srcs = ["test/filament/WallpaperLifecycleRegressionTest.kt"],
     test_class = "com.phuchienngo.marblemarvelous.filament.WallpaperLifecycleRegressionTest",
-    data = [
-        "AndroidManifest.xml",
-        "src/MarbleApplication.kt",
-        "src/filament/FilamentWallpaperService.kt",
-        "src/permissions/PermissionsActivity.kt",
-    ],
     associates = [":app_lib"],
     deps = _TEST_DEPS,
 )
