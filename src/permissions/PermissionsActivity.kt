@@ -1,26 +1,20 @@
 package com.phuchienngo.marblemarvelous.permissions
 
+import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.TextView
-import androidx.activity.ComponentActivity
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.edit
 import com.phuchienngo.marblemarvelous.R
 
-class PermissionsActivity : ComponentActivity() {
+class PermissionsActivity : Activity() {
   private var permissions: Array<String> = emptyArray()
   private var sharedPreferencesKey: String? = null
-  private val requestPermissions: ActivityResultLauncher<Array<String>> =
-    registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissionResults: Map<String, Boolean> ->
-      onPermissionResult(permissionResults)
-    }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -35,7 +29,7 @@ class PermissionsActivity : ComponentActivity() {
     }
 
     setContentView(permissionRequestView())
-    requestPermissions.launch(permissions)
+    requestPermissions(permissions, PERMISSION_REQUEST_CODE)
   }
 
   private fun permissionRequestView(): FrameLayout {
@@ -65,10 +59,19 @@ class PermissionsActivity : ComponentActivity() {
 
   private fun defaultPermissions(): Array<String> = arrayOf(LocationPermissions.LOCATION_PERMISSION)
 
-  private fun onPermissionResult(permissionResults: Map<String, Boolean>) {
+  override fun onRequestPermissionsResult(
+    requestCode: Int,
+    requestedPermissions: Array<out String>,
+    grantResults: IntArray
+  ) {
+    super.onRequestPermissionsResult(requestCode, requestedPermissions, grantResults)
+    if (requestCode != PERMISSION_REQUEST_CODE) {
+      return
+    }
     val granted: Boolean =
-      permissions.all { permission: String ->
-        return@all permissionResults[permission] == true
+      grantResults.size == permissions.size &&
+        grantResults.all { result: Int ->
+          return@all result == PackageManager.PERMISSION_GRANTED
       }
     savePermissionResult(granted)
     finish()
@@ -80,10 +83,10 @@ class PermissionsActivity : ComponentActivity() {
     val preferences: SharedPreferences =
       secureContext.getSharedPreferences(APP_PERMISSIONS, Context.MODE_PRIVATE)
     preferences
-      .edit {
-        putBoolean(preferenceKey, granted)
-          .putBoolean(preferenceKey + ASKED_PREFIX, PERMISSION_ASKED)
-      }
+      .edit()
+      .putBoolean(preferenceKey, granted)
+      .putBoolean(preferenceKey + ASKED_PREFIX, PERMISSION_ASKED)
+      .apply()
   }
 
   private companion object {
@@ -92,6 +95,7 @@ class PermissionsActivity : ComponentActivity() {
     private const val PERMISSION_ASKED: Boolean = true
     private const val PADDING_DP: Float = 24.0f
     private const val MESSAGE_TEXT_SP: Float = 16.0f
+    private const val PERMISSION_REQUEST_CODE: Int = 1
     private const val SCRIM_COLOR: Int = 0xDD000000.toInt()
   }
 }

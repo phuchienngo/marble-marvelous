@@ -1,5 +1,6 @@
 package com.phuchienngo.marblemarvelous.weather
 
+import com.phuchienngo.marblemarvelous.space.AuroraActivityProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -7,6 +8,20 @@ import org.junit.Test
 import java.io.File
 
 class OpenWeatherCloudsTest {
+  @Test
+  fun parsesObjectBasedAuroraFeedWithPlatformJson() {
+    val json = """[{"time_tag":"header"},{"Kp":4.5}]"""
+
+    assertEquals(0.575f, requireNotNull(AuroraActivityProvider.parseActivity(json)), 0.0001f)
+  }
+
+  @Test
+  fun parsesLegacyAuroraFeedWithPlatformJson() {
+    val json = """[["time_tag","Kp"],["2026-07-12", "9"]]"""
+
+    assertEquals(1.0f, requireNotNull(AuroraActivityProvider.parseActivity(json)), 0.0001f)
+  }
+
   @Test
   fun getCloudValueReturnsLumaForOpaquePixels() {
     assertEquals(OPAQUE_WHITE_CLOUD, OpenWeatherClouds.getCloudValue(WHITE))
