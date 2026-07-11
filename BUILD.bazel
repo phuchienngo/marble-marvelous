@@ -1,6 +1,6 @@
 load("@rules_android//android:rules.bzl", "android_binary")
 load("@rules_kotlin//kotlin:android.bzl", "kt_android_library")
-load("@rules_kotlin//kotlin:core.bzl", "define_kt_toolchain", "kt_compiler_plugin", "kt_ksp_plugin")
+load("@rules_kotlin//kotlin:core.bzl", "define_kt_toolchain", "kt_ksp_plugin")
 load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -26,12 +26,6 @@ define_kt_toolchain(
     api_version = "2.4",
     jvm_target = "17",
     language_version = "2.4",
-)
-
-kt_compiler_plugin(
-    name = "serialization_plugin",
-    id = "org.jetbrains.kotlinx.serialization",
-    deps = ["@maven//:org_jetbrains_kotlin_kotlin_serialization_compiler_plugin"],
 )
 
 kt_ksp_plugin(
@@ -67,28 +61,17 @@ kt_android_library(
     srcs = glob(["src/**/*.kt"]),
     custom_package = "com.phuchienngo.marblemarvelous",
     manifest = "LibraryManifest.xml",
-    plugins = [
-        ":serialization_plugin",
-        ":hilt_ksp",
-    ],
+    plugins = [":hilt_ksp"],
     resource_files = glob(
         ["res/**"],
         exclude = ["res/values/secrets.xml"],
     ) + [":secrets_xml"],
     deps = [
-        "@maven//:androidx_activity_activity",
-        "@maven//:androidx_concurrent_concurrent_futures",
         "@maven//:com_google_android_filament_filament_android",
         "@maven//:com_google_dagger_dagger",
         "@maven//:com_google_dagger_hilt_android",
         "@maven//:com_google_dagger_hilt_core",
-        "@maven//:com_google_errorprone_error_prone_annotations",
-        "@maven//:com_google_guava_listenablefuture",
-        "@maven//:io_ktor_ktor_client_cio_jvm",
-        "@maven//:io_ktor_ktor_client_core_jvm",
         "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_android",
-        "@maven//:org_jetbrains_kotlinx_kotlinx_datetime_jvm",
-        "@maven//:org_jetbrains_kotlinx_kotlinx_serialization_json_jvm",
     ],
 )
 
@@ -106,6 +89,9 @@ android_binary(
         "versionCode": "28",
         "versionName": "0.0.1",
     },
+    proguard_generate_mapping = True,
+    proguard_specs = ["proguard.cfg"],
+    shrink_resources = 1,
     deps = [":app_lib"],
 )
 
@@ -151,6 +137,20 @@ kt_jvm_test(
     name = "FilamentEarthMotionTest",
     srcs = ["test/filament/FilamentEarthMotionTest.kt"],
     test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthMotionTest",
+    associates = [":app_lib"],
+    deps = _TEST_DEPS,
+)
+
+kt_jvm_test(
+    name = "WallpaperLifecycleRegressionTest",
+    srcs = ["test/filament/WallpaperLifecycleRegressionTest.kt"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.WallpaperLifecycleRegressionTest",
+    data = [
+        "AndroidManifest.xml",
+        "src/MarbleApplication.kt",
+        "src/filament/FilamentWallpaperService.kt",
+        "src/permissions/PermissionsActivity.kt",
+    ],
     associates = [":app_lib"],
     deps = _TEST_DEPS,
 )
@@ -224,5 +224,6 @@ test_suite(
         ":FilamentSunDirectionTest",
         ":LocationFallbackTest",
         ":OpenWeatherCloudsTest",
+        ":WallpaperLifecycleRegressionTest",
     ],
 )

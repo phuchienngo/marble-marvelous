@@ -2,7 +2,7 @@ package com.phuchienngo.marblemarvelous.filament
 
 import com.phuchienngo.marblemarvelous.math.Vec3
 import com.phuchienngo.marblemarvelous.utils.DateUtils
-import kotlin.time.Instant
+import java.time.Instant
 
 internal object FilamentCameraFraming {
   fun offsetFor(

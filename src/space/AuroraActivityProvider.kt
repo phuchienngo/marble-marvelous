@@ -1,14 +1,9 @@
 package com.phuchienngo.marblemarvelous.space
 
 import android.util.Log
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.get
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
+import com.phuchienngo.marblemarvelous.di.PlatformHttpClient
+import com.phuchienngo.marblemarvelous.di.PlatformHttpResponse
+import com.phuchienngo.marblemarvelous.di.awaitResult
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,53 +12,64 @@ import javax.inject.Singleton
  * activity level used to drive the aurora curtain in the earth shader.
  */
 @Singleton
-class AuroraActivityProvider
+internal class AuroraActivityProvider
 @Inject
 constructor(
-  private val httpClient: HttpClient
+  private val httpClient: PlatformHttpClient
 ) {
   suspend fun currentActivity(): Float? =
     try {
-      val body: String = httpClient.get(KP_INDEX_URL).body()
-      parseActivity(body)
+      val response: PlatformHttpResponse = httpClient.get(KP_INDEX_URL).awaitResult()
+      if (!response.isSuccessful) {
+        return null
+      }
+      parseActivity(response.body.toString(Charsets.UTF_8))
     } catch (e: Exception) {
       Log.e(TAG, "Failed to fetch planetary Kp index", e)
       null
     }
 
-  private fun parseActivity(json: String): Float? {
-    val rows: JsonArray = Json.parseToJsonElement(json).jsonArray
-    if (rows.size < 2) {
-      return null
+  internal companion object {
+    internal fun parseActivity(json: String): Float? {
+      val latestKp: Double = latestObjectKp(json) ?: latestLegacyKp(json) ?: return null
+      val normalized: Double = (latestKp / MAX_KP).coerceIn(0.0, 1.0)
+      return (AURORA_BASELINE + (1.0 - AURORA_BASELINE) * normalized).toFloat().coerceIn(0.0f, 1.0f)
     }
-    val latestKp: Double = latestKp(rows) ?: return null
-    val normalized: Double = (latestKp / MAX_KP).coerceIn(0.0, 1.0)
-    return (AURORA_BASELINE + (1.0 - AURORA_BASELINE) * normalized).toFloat().coerceIn(0.0f, 1.0f)
-  }
 
-  private fun latestKp(rows: JsonArray): Double? {
-    // Newer feed: array of objects with a numeric "Kp" field.
-    ((rows.last() as? JsonObject)?.get(KP_FIELD) as? JsonPrimitive)
-      ?.content
-      ?.toDoubleOrNull()
-      ?.let { return it }
-    // Legacy feed: array of arrays whose first row is a header naming the Kp column.
-    val header: JsonArray = (rows.first() as? JsonArray) ?: return null
-    var kpColumn = -1
-    for (column in header.indices) {
-      val headerValue: String = (header[column] as? JsonPrimitive)?.content ?: continue
-      if (headerValue.equals(KP_FIELD, ignoreCase = true)) {
-        kpColumn = column
+    private fun latestObjectKp(json: String): Double? =
+      OBJECT_KP_PATTERN
+        .findAll(json)
+        .lastOrNull()
+        ?.groupValues
+        ?.get(1)
+        ?.toDoubleOrNull()
+
+    private fun latestLegacyKp(json: String): Double? {
+      val rows: List<MatchResult> = ARRAY_ROW_PATTERN.findAll(json).toList()
+      if (rows.size < 2) {
+        return null
       }
+      val header: List<String> = parseRow(rows.first().groupValues[1])
+      val kpColumn: Int = header.indexOfFirst { value: String ->
+        return@indexOfFirst value.equals(KP_FIELD, ignoreCase = true)
+      }
+      if (kpColumn < 0) {
+        return null
+      }
+      val latest: List<String> = parseRow(rows.last().groupValues[1])
+      return latest.getOrNull(kpColumn)?.toDoubleOrNull()
     }
-    if (kpColumn < 0) {
-      return null
-    }
-    val latest: JsonArray = (rows.last() as? JsonArray) ?: return null
-    return (latest[kpColumn] as? JsonPrimitive)?.content?.toDoubleOrNull()
-  }
 
-  private companion object {
+    private fun parseRow(row: String): List<String> {
+      val values: MutableList<String> = mutableListOf()
+      for (value: String in row.split(',')) {
+        values.add(value.trim().trim('"'))
+      }
+      return values
+    }
+
+    private val ARRAY_ROW_PATTERN = Regex("\\[([^\\[\\]]*)]")
+    private val OBJECT_KP_PATTERN = Regex("\\\"Kp\\\"\\s*:\\s*\\\"?(-?\\d+(?:\\.\\d+)?)\\\"?", RegexOption.IGNORE_CASE)
     private const val TAG: String = "AuroraActivity"
     private const val KP_INDEX_URL: String =
       "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"

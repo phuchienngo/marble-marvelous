@@ -34,7 +34,7 @@ import kotlin.time.Duration.Companion.hours
  * least one engine is attached and stops when the last one goes away.
  */
 @Singleton
-class WallpaperRefreshScheduler
+internal class WallpaperRefreshScheduler
 @Inject
 constructor(
   @param:ApplicationContext private val context: Context,

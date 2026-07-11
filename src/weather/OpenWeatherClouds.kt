@@ -4,14 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
+import com.phuchienngo.marblemarvelous.di.PlatformHttpClient
+import com.phuchienngo.marblemarvelous.di.PlatformHttpResponse
 import com.phuchienngo.marblemarvelous.di.WeatherDispatcher
+import com.phuchienngo.marblemarvelous.di.awaitResult
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.FACE
 import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds.Companion.MAX_PARALLEL_TILE_DOWNLOADS
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsBytes
-import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -48,10 +46,10 @@ import kotlin.time.Duration.Companion.seconds
  * earth/clouds.ktx.
  */
 @Singleton
-class OpenWeatherClouds
+internal class OpenWeatherClouds
 @Inject
 constructor(
-  private val httpClient: HttpClient,
+  private val httpClient: PlatformHttpClient,
   @param:WeatherDispatcher private val defaultDispatcher: CoroutineDispatcher
 ) {
   suspend fun generateCubeFaces(
@@ -173,11 +171,11 @@ constructor(
     // short backoff.
     for (attempt in 0 until TILE_ATTEMPTS) {
       try {
-        val response: HttpResponse = httpClient.get(url)
-        if (!response.status.isSuccess()) {
-          Log.w(TAG, "Tile $z/$x/$y -> HTTP ${response.status.value} (attempt ${attempt + 1})")
+        val response: PlatformHttpResponse = httpClient.get(url).awaitResult()
+        if (!response.isSuccessful) {
+          Log.w(TAG, "Tile $z/$x/$y -> HTTP ${response.statusCode} (attempt ${attempt + 1})")
         } else {
-          val tileBytes: ByteArray = response.bodyAsBytes()
+          val tileBytes: ByteArray = response.body
           val bitmap: Bitmap? = BitmapFactory.decodeByteArray(tileBytes, 0, tileBytes.size)
           if (bitmap != null) {
             return bitmap

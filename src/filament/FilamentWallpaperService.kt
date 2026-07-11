@@ -25,7 +25,6 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
   internal lateinit var userLocationEarth: UserLocationEarth
 
   override fun onCreate() {
-    // The generated Hilt base class injects the @Inject fields during super.onCreate().
     super.onCreate()
   }
 
@@ -41,6 +40,11 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
     private var isVisible = false
     private val refreshScope: CoroutineScope =
       CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val refreshRegistration =
+      WallpaperRefreshRegistration(
+        start = refreshScheduler::start,
+        stop = refreshScheduler::stop
+      )
     private var refreshJob: Job? = null
 
     override fun onCreate(surfaceHolder: SurfaceHolder) {
@@ -89,17 +93,14 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
       super.onVisibilityChanged(visible)
       isVisible = visible
       renderer?.setPaused(!visible)
+      refreshRegistration.updateVisibility(visible)
       updateFrameLoop()
     }
 
     override fun onDestroy() {
       isDestroyed = true
       stopFrameLoop()
-      // Balance the start() from ensureRenderer() so the shared scheduler can
-      // stop its loop once the last engine is gone.
-      if (refreshJob != null) {
-        refreshScheduler.stop()
-      }
+      refreshRegistration.close()
       refreshScope.cancel()
       destroyRenderer()
       super.onDestroy()
@@ -170,7 +171,6 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
       if (refreshJob != null) {
         return
       }
-      refreshScheduler.start()
       refreshJob =
         refreshScope.launch {
           launch {
@@ -290,5 +290,28 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
     private const val TAG: String = "FilamentWallpaper"
     private const val TARGET_FPS: Int = 18
     private const val FRAME_INTERVAL_MILLIS: Long = MILLIS_PER_SECOND / TARGET_FPS
+  }
+}
+
+internal class WallpaperRefreshRegistration(
+  private val start: () -> Unit,
+  private val stop: () -> Unit
+) {
+  private var registered = false
+
+  fun updateVisibility(visible: Boolean) {
+    if (visible == registered) {
+      return
+    }
+    registered = visible
+    if (visible) {
+      start()
+    } else {
+      stop()
+    }
+  }
+
+  fun close() {
+    updateVisibility(visible = false)
   }
 }

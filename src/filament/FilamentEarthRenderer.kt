@@ -31,7 +31,7 @@ import java.nio.ShortBuffer
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.sin
-import kotlin.time.Instant
+import java.time.Instant
 
 internal class FilamentEarthRenderer(
   context: Context,
@@ -58,7 +58,7 @@ internal class FilamentEarthRenderer(
   private var cameraAspectRatio: Float = 1.0f
   private var cameraVerticalFovDegrees: Float = CAMERA_FOV_DEGREES
   private var cameraNeedsUpdate: Boolean = true
-  private var firstFrameTimeNanos: Long = 0L
+  private val motionClock = FilamentEarthMotionClock()
   private var lastDateSampleMillis: Long = 0L
   private var cachedUtcDayRatio: Float = 0.0f
   private val earthTransform: FloatArray =
@@ -254,9 +254,9 @@ internal class FilamentEarthRenderer(
 
   fun setPaused(paused: Boolean) {
     engine.isPaused = paused
+    motionClock.setPaused(paused, System.nanoTime())
     if (!paused) {
       cameraNeedsUpdate = true
-      firstFrameTimeNanos = 0L
       lastDateSampleMillis = 0L
     }
   }
@@ -265,7 +265,7 @@ internal class FilamentEarthRenderer(
     val currentSwapChain: SwapChain = swapChain ?: return
     updateEarthTransform(frameTimeNanos)
     updateCameraIfNeeded()
-    val elapsedSeconds: Float = (frameTimeNanos - firstFrameTimeNanos).toFloat() * NANOS_TO_SECONDS
+    val elapsedSeconds: Float = motionClock.elapsedSeconds(frameTimeNanos)
     stars.setTime(elapsedSeconds)
     materialInstance.setParameter(FilamentEarthMaterial.TIME, elapsedSeconds)
     if (!renderer.beginFrame(currentSwapChain, frameTimeNanos)) {
@@ -344,11 +344,8 @@ internal class FilamentEarthRenderer(
   }
 
   private fun updateEarthTransform(frameTimeNanos: Long) {
-    if (firstFrameTimeNanos == 0L) {
-      firstFrameTimeNanos = frameTimeNanos
-    }
     refreshDateSampleIfNeeded()
-    val seconds: Float = (frameTimeNanos - firstFrameTimeNanos).toFloat() * NANOS_TO_SECONDS
+    val seconds: Float = motionClock.elapsedSeconds(frameTimeNanos)
     val angle: Float =
       FilamentEarthMotion.earthYawRadians(
         utcDayRatio = cachedUtcDayRatio,
@@ -511,7 +508,6 @@ internal class FilamentEarthRenderer(
     private const val FULL_ROTATION_DEGREES: Float = 360.0f
     private const val LOOKUP_NORMAL_BUFFER_INDEX: Int = 1
     private const val LOOKUP_NORMAL_STRIDE_BYTES: Int = 16
-    private const val NANOS_TO_SECONDS: Float = 0.000000001f
     private const val NO_TRANSFORM_INSTANCE: Int = 0
     private const val POSITION_BUFFER_INDEX: Int = 0
     private const val POSITION_STRIDE_BYTES: Int = 12

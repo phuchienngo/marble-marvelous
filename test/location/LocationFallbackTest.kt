@@ -5,6 +5,16 @@ import org.junit.Test
 
 class LocationFallbackTest {
   @Test
+  fun parsesCountryFallbackWithoutSerializationRuntime() {
+    val json = """{"VNM":["Vietnam",16.0,106.0]}"""
+
+    assertEquals(
+      GeoLocation(longitudeDegrees = 106.0f, latitudeDegrees = 16.0f),
+      UserLocationEarth.parseCountryLocation(json, "VNM")
+    )
+  }
+
+  @Test
   fun fromUtcOffsetMapsVietnamOffsetToEastLongitude() {
     val location: GeoLocation = LocationFallback.fromUtcOffset(VIETNAM_OFFSET_MILLIS)
 

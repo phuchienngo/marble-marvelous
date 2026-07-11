@@ -6,18 +6,10 @@ import android.content.SharedPreferences
 import android.location.Location
 import android.location.LocationManager
 import android.util.Log
-import androidx.core.content.edit
 import com.phuchienngo.marblemarvelous.R
 import com.phuchienngo.marblemarvelous.permissions.LocationPermissions
 import com.phuchienngo.marblemarvelous.permissions.PermissionsListener
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.double
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import java.util.Locale
 import java.util.TimeZone
 import javax.inject.Inject
@@ -33,7 +25,7 @@ constructor(
     context.getSystemService("location") as LocationManager
   private val locationPermissions: LocationPermissions = LocationPermissions(context, this)
   private var permissionsAccepted: Boolean = locationPermissions.arePermissionsGranted()
-  private var countries: JsonObject? = null
+  private var countriesJson: String? = null
 
   @SuppressLint("MissingPermission")
   fun lastKnown(requestPermissions: Boolean): GeoLocation {
@@ -52,10 +44,10 @@ constructor(
       val lat: Float = location.latitude.toFloat()
       val lng: Float = location.longitude.toFloat()
       preferences
-        .edit {
-          putFloat(PREF_LAST_LNG, lng)
-            .putFloat(PREF_LAST_LAT, lat)
-        }
+        .edit()
+        .putFloat(PREF_LAST_LNG, lng)
+        .putFloat(PREF_LAST_LAT, lat)
+        .apply()
       return GeoLocation(
         longitudeDegrees = lng,
         latitudeDegrees = lat
@@ -87,22 +79,17 @@ constructor(
 
   private fun getCountryFallbackLocation(): GeoLocation? {
     return try {
-      if (countries == null) {
-        val json: String =
+      if (countriesJson == null) {
+        countriesJson =
           context.resources.openRawResource(R.raw.countries)
             .bufferedReader()
             .use { reader -> reader.readText() }
-        countries = Json.parseToJsonElement(json).jsonObject
       }
       val locale: Locale =
         context.resources.configuration.locales
           .get(0)
       val country: String = locale.isO3Country
-      val countryData: JsonArray = countries!!.getValue(country).jsonArray
-      GeoLocation(
-        longitudeDegrees = countryData[2].jsonPrimitive.double.toFloat(),
-        latitudeDegrees = countryData[1].jsonPrimitive.double.toFloat()
-      )
+      parseCountryLocation(requireNotNull(countriesJson), country)
     } catch (e: Exception) {
       Log.e(TAG, "Cannot load country fallback location", e)
       null
@@ -121,6 +108,21 @@ constructor(
       .getSharedPreferences("location", 0)
 
   companion object {
+    internal fun parseCountryLocation(
+      json: String,
+      country: String
+    ): GeoLocation? {
+      val countryPattern =
+        Regex(
+          "\\\"${Regex.escape(country)}\\\"\\s*:\\s*\\[\\s*\\\"(?:\\\\.|[^\\\"])*\\\"\\s*," +
+            "\\s*(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)"
+        )
+      val match: MatchResult = countryPattern.find(json) ?: return null
+      val latitude: Float = match.groupValues[1].toFloatOrNull() ?: return null
+      val longitude: Float = match.groupValues[2].toFloatOrNull() ?: return null
+      return GeoLocation(longitudeDegrees = longitude, latitudeDegrees = latitude)
+    }
+
     private const val GMT_LONGITUDE: Float = 0.0f
     private const val PREF_LAST_LAT: String = "last_lat"
     private const val PREF_LAST_LNG: String = "last_lng"
