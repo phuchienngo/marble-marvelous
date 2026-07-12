@@ -74,7 +74,7 @@ internal class FilamentEarthTextures private constructor(
       // the texture rebuild/swap and the follow-up render.
       return false
     }
-    val newCloudMaskMap: Texture = buildCloudMaskTexture(engine, cachedFaces.buffer)
+    val newCloudMaskMap: Texture = buildCloudMaskTexture(engine, cachedFaces.mipBuffers)
     val previousCloudMaskMap: Texture = cloudMaskMap
 
     try {
@@ -184,10 +184,9 @@ internal class FilamentEarthTextures private constructor(
     }
 
     /**
-     * Reads the six cached faces into one direct buffer (with a content
-     * checksum), or null if any is missing. The whole read — readability
-     * checks, the direct allocation, the six stream copies and the checksum —
-     * runs off the main thread in a single IO context.
+     * Reads the six cached faces, computes their content checksum, and builds
+     * the complete direct-buffer mip chain, or returns null if any face is
+     * missing. All CPU and file work runs in one IO context.
      */
     private suspend fun readCloudFacesBuffer(context: Context): CachedFaces? =
       withContext(Dispatchers.IO) {
@@ -204,39 +203,43 @@ internal class FilamentEarthTextures private constructor(
           }
         }
 
-        val uploadBuffer: ByteBuffer =
+        val baseLevelBuffer: ByteBuffer =
           ByteBuffer
             .allocateDirect(FACE_NAMES.size * FACE_SIZE * FACE_SIZE)
             .order(ByteOrder.nativeOrder())
         for (file: File in rawFaces) {
-          readFileInto(file, uploadBuffer)
+          readFileInto(file, baseLevelBuffer)
         }
-        uploadBuffer.flip()
-        CachedFaces(uploadBuffer, checksumOf(uploadBuffer))
+        baseLevelBuffer.flip()
+        CachedFaces(
+          mipBuffers = createCloudMipBuffers(baseLevelBuffer),
+          checksum = checksumOf(baseLevelBuffer)
+        )
       }
 
     /** Filament resource creation — must run on the engine (render) thread. */
     private fun buildCloudMaskTexture(
       engine: Engine,
-      uploadBuffer: ByteBuffer
+      mipBuffers: List<ByteBuffer>
     ): Texture {
       val texture: Texture =
         Texture
           .Builder()
-          .sampler(Texture.Sampler.SAMPLER_2D_ARRAY)
-          .usage(
-            Texture.Usage.UPLOADABLE or
-              Texture.Usage.SAMPLEABLE or
-              Texture.Usage.GEN_MIPMAPPABLE
-          )
+          .sampler(CLOUD_MASK_TEXTURE_TARGET)
+          .usage(Texture.Usage.UPLOADABLE or Texture.Usage.SAMPLEABLE)
           .format(Texture.InternalFormat.R8)
           .width(FACE_SIZE)
           .height(FACE_SIZE)
-          .depth(FACE_NAMES.size)
-          .levels(mipLevelCount(FACE_SIZE))
+          .levels(mipBuffers.size)
           .build(engine)
-      texture.setTextureArrayImage(engine, uploadBuffer)
-      texture.generateMipmaps(engine)
+      for (level: Int in mipBuffers.indices) {
+        texture.setCubemapImage(
+          engine = engine,
+          level = level,
+          faceSize = FACE_SIZE shr level,
+          uploadBuffer = mipBuffers[level]
+        )
+      }
       return texture
     }
 
@@ -252,6 +255,49 @@ internal class FilamentEarthTextures private constructor(
       checksum.update(buffer)
       buffer.reset()
       return checksum.value
+    }
+
+    private fun createCloudMipBuffers(baseLevelBuffer: ByteBuffer): List<ByteBuffer> {
+      val mipBuffers = ArrayList<ByteBuffer>(mipLevelCount(FACE_SIZE))
+      mipBuffers.add(baseLevelBuffer)
+      var sourceBuffer: ByteBuffer = baseLevelBuffer
+      var sourceFaceSize: Int = FACE_SIZE
+      while (sourceFaceSize > 1) {
+        val nextBuffer: ByteBuffer = downsampleCloudFaces(sourceBuffer, sourceFaceSize)
+        mipBuffers.add(nextBuffer)
+        sourceBuffer = nextBuffer
+        sourceFaceSize /= 2
+      }
+      return mipBuffers
+    }
+
+    private fun downsampleCloudFaces(
+      sourceBuffer: ByteBuffer,
+      sourceFaceSize: Int
+    ): ByteBuffer {
+      val targetFaceSize: Int = sourceFaceSize / 2
+      val sourceFaceBytes: Int = sourceFaceSize * sourceFaceSize
+      val targetBuffer: ByteBuffer =
+        ByteBuffer
+          .allocateDirect(FACE_NAMES.size * targetFaceSize * targetFaceSize)
+          .order(ByteOrder.nativeOrder())
+      for (faceIndex: Int in FACE_NAMES.indices) {
+        val faceOffset: Int = faceIndex * sourceFaceBytes
+        for (targetY: Int in 0 until targetFaceSize) {
+          val sourceRowOffset: Int = faceOffset + targetY * 2 * sourceFaceSize
+          for (targetX: Int in 0 until targetFaceSize) {
+            val sourceOffset: Int = sourceRowOffset + targetX * 2
+            val average: Int =
+              (sourceBuffer.get(sourceOffset).toInt() and UNSIGNED_BYTE_MASK) +
+                (sourceBuffer.get(sourceOffset + 1).toInt() and UNSIGNED_BYTE_MASK) +
+                (sourceBuffer.get(sourceOffset + sourceFaceSize).toInt() and UNSIGNED_BYTE_MASK) +
+                (sourceBuffer.get(sourceOffset + sourceFaceSize + 1).toInt() and UNSIGNED_BYTE_MASK)
+            targetBuffer.put(((average + MIP_AVERAGE_ROUNDING) / MIP_SAMPLE_COUNT).toByte())
+          }
+        }
+      }
+      targetBuffer.flip()
+      return targetBuffer
     }
 
     /** Streams one face into [buffer]. Caller runs it inside an IO context. */
@@ -273,8 +319,10 @@ internal class FilamentEarthTextures private constructor(
     private fun expectedRawFaceBytes(): Long = FACE_SIZE.toLong() * FACE_SIZE
 
     @Suppress("DEPRECATION")
-    private fun Texture.setTextureArrayImage(
+    private fun Texture.setCubemapImage(
       engine: Engine,
+      level: Int,
+      faceSize: Int,
       uploadBuffer: ByteBuffer
     ) {
       val descriptor =
@@ -287,28 +335,27 @@ internal class FilamentEarthTextures private constructor(
       // See FilamentUploadBuffers: the callback lets Filament release the upload
       // buffer once the async GPU upload finishes.
       descriptor.setCallback(null, FilamentUploadBuffers.RELEASE_AFTER_UPLOAD)
-      setImage(
-        engine,
-        Texture.BASE_LEVEL,
-        0,
-        0,
-        0,
-        FACE_SIZE,
-        FACE_SIZE,
-        FACE_NAMES.size,
-        descriptor
-      )
+      val faceBytes: Int = faceSize * faceSize
+      val faceOffsets: IntArray =
+        IntArray(FACE_NAMES.size) { faceIndex: Int ->
+          return@IntArray faceIndex * faceBytes
+        }
+      setImage(engine, level, descriptor, faceOffsets)
     }
 
     private class CachedFaces(
-      val buffer: ByteBuffer,
+      val mipBuffers: List<ByteBuffer>,
       val checksum: Long
     )
 
+    internal val CLOUD_MASK_TEXTURE_TARGET: Texture.Sampler = Texture.Sampler.SAMPLER_CUBEMAP
     private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
     private const val FACE_SIZE: Int = 1024
     private const val CLOUD_DETAIL_ANISOTROPY: Float = SURFACE_ANISOTROPY
+    private const val MIP_AVERAGE_ROUNDING: Int = 2
+    private const val MIP_SAMPLE_COUNT: Int = 4
     private const val RAW_FACE_EXTENSION: String = ".r8"
     private const val RAW_FACE_VERSION: String = "-nasa-v5"
+    private const val UNSIGNED_BYTE_MASK: Int = 0xFF
   }
 }

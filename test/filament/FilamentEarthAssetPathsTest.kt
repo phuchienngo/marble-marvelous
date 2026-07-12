@@ -1,5 +1,6 @@
 package com.phuchienngo.marblemarvelous.filament
 
+import com.google.android.filament.Texture
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
@@ -52,6 +53,27 @@ class FilamentEarthAssetPathsTest {
   @Test
   fun cloudMaskUsesCompleteMipmapChain() {
     assertEquals(11, FilamentEarthTextures.mipLevelCount(faceSize = 1024))
+  }
+
+  @Test
+  fun earthTexturesUseCubemapSamplingAcrossFaceEdges() {
+    assertEquals(
+      Texture.Sampler.SAMPLER_CUBEMAP,
+      FilamentKtxCubeTextureArrayLoader.TEXTURE_TARGET
+    )
+    assertEquals(
+      Texture.Sampler.SAMPLER_CUBEMAP,
+      FilamentEarthTextures.CLOUD_MASK_TEXTURE_TARGET
+    )
+  }
+
+  @Test
+  fun compressedCubemapUploadCoversAllFacesInOneRegion() {
+    val layout: FilamentKtxCubeTextureArrayLoader.CubemapUploadLayout =
+      FilamentKtxCubeTextureArrayLoader.cubemapUploadLayout(faceBytes = 16)
+
+    assertEquals(96, layout.descriptorBytes)
+    assertEquals(layout.levelBytes, layout.descriptorBytes)
   }
 
   @Test(expected = IllegalArgumentException::class)

@@ -8,9 +8,9 @@ material {
     { name : lookupNormal, precision : medium }
   ],
   parameters : [
-    { type : sampler2dArray, format : float, precision : medium, name : dayMap },
-    { type : sampler2dArray, format : float, precision : medium, name : nightMap },
-    { type : sampler2dArray, format : float, precision : medium, name : cloudMaskMap },
+    { type : samplerCubemap, format : float, precision : medium, name : dayMap },
+    { type : samplerCubemap, format : float, precision : medium, name : nightMap },
+    { type : samplerCubemap, format : float, precision : medium, name : cloudMaskMap },
     { type : float3, name : sunDirection },
     { type : float3, name : userLocation },
     { type : float, name : time },
@@ -47,49 +47,16 @@ fragment {
     return normalize(cross(normal, float3(0.0, 1.0, 0.0)) + float3(0.0001, 0.0, 0.0));
   }
 
-  float3 cubeArrayCoord(float3 normal) {
-    float3 n = normalize(normal);
-    float3 a = abs(n);
-    float2 uv;
-    float layer;
-    if (a.x >= a.y && a.x >= a.z) {
-      if (n.x > 0.0) {
-        uv = float2(-n.z, -n.y) / a.x;
-        layer = 0.0;
-      } else {
-        uv = float2(n.z, -n.y) / a.x;
-        layer = 1.0;
-      }
-    } else if (a.y >= a.x && a.y >= a.z) {
-      if (n.y > 0.0) {
-        uv = float2(n.x, n.z) / a.y;
-        layer = 2.0;
-      } else {
-        uv = float2(n.x, -n.z) / a.y;
-        layer = 3.0;
-      }
-    } else {
-      if (n.z > 0.0) {
-        uv = float2(n.x, -n.y) / a.z;
-        layer = 4.0;
-      } else {
-        uv = float2(-n.x, -n.y) / a.z;
-        layer = 5.0;
-      }
-    }
-    return float3(uv * 0.5 + 0.5, layer);
-  }
-
   float3 sampleDayTexture(float3 normal) {
-    return texture(materialParams_dayMap, cubeArrayCoord(normal)).rgb;
+    return texture(materialParams_dayMap, normalize(normal)).rgb;
   }
 
   float3 sampleNightTexture(float3 normal) {
-    return texture(materialParams_nightMap, cubeArrayCoord(normal)).rgb;
+    return texture(materialParams_nightMap, normalize(normal)).rgb;
   }
 
   float sampleCloudMaskTexture(float3 normal) {
-    return texture(materialParams_cloudMaskMap, cubeArrayCoord(normal)).r;
+    return texture(materialParams_cloudMaskMap, normalize(normal)).r;
   }
 
   float3 sampleDaySharp(float3 normal) {

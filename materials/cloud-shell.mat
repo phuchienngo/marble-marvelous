@@ -8,8 +8,8 @@ material {
     { name : lookupNormal, precision : medium }
   ],
   parameters : [
-    { type : sampler2dArray, format : float, precision : medium, name : cloudMaskMap },
-    { type : sampler2dArray, format : float, precision : medium, name : cloudDetailMap },
+    { type : samplerCubemap, format : float, precision : medium, name : cloudMaskMap },
+    { type : samplerCubemap, format : float, precision : medium, name : cloudDetailMap },
     { type : float3, name : sunDirection }
   ],
   blending : transparent,
@@ -29,112 +29,33 @@ material {
 }
 
 vertex {
-  float3 cubeArrayCoordVertex(float3 normal) {
-    float3 n = normalize(normal);
-    float3 a = abs(n);
-    float2 uv;
-    float layer;
-    if (a.x >= a.y && a.x >= a.z) {
-      if (n.x > 0.0) {
-        uv = float2(-n.z, -n.y) / a.x;
-        layer = 0.0;
-      } else {
-        uv = float2(n.z, -n.y) / a.x;
-        layer = 1.0;
-      }
-    } else if (a.y >= a.x && a.y >= a.z) {
-      if (n.y > 0.0) {
-        uv = float2(n.x, n.z) / a.y;
-        layer = 2.0;
-      } else {
-        uv = float2(n.x, -n.z) / a.y;
-        layer = 3.0;
-      }
-    } else {
-      if (n.z > 0.0) {
-        uv = float2(n.x, -n.y) / a.z;
-        layer = 4.0;
-      } else {
-        uv = float2(-n.x, -n.y) / a.z;
-        layer = 5.0;
-      }
-    }
-    return float3(uv * 0.5 + 0.5, layer);
-  }
-
   void materialVertex(inout MaterialVertexInputs material) {
     float3 lookup = normalize(getCustom0().xyz);
-    float3 cloudLookup = normalize(float3(lookup.z, lookup.x, lookup.y));
-    float weatherMask = textureLod(
-      materialParams_cloudMaskMap,
-      cubeArrayCoordVertex(cloudLookup),
-      1.0
-    ).r;
-    float detail = textureLod(
-      materialParams_cloudDetailMap,
-      cubeArrayCoordVertex(cloudLookup),
-      2.0
-    ).r;
-    float cloudHeight =
-      smoothstep(0.10, 0.82, mix(weatherMask, sqrt(weatherMask), 0.38)) *
-      mix(0.72, 1.0, detail);
-    material.worldPosition.xyz += normalize(material.worldPosition.xyz) * cloudHeight * 0.0060;
+    material.worldPosition.xyz += normalize(material.worldPosition.xyz) * 0.0042;
     material.lookupNormal = float4(lookup, 1.0);
   }
 }
 
 fragment {
   const float cloudMaskSampleOffset = 0.0070;
-  const float cloudDetailSampleOffset = 0.0080;
+  const float cloudDetailSampleOffset = 0.0050;
   const float cloudShadowHeight = 0.00733038;
-  const float cloudReliefScale = 7.0;
-  const float cloudMaskBoost = 0.82;
-  const float cloudThinBoostMix = 0.38;
-  const float cloudSelfShadowStrength = 0.46;
+  const float cloudReliefScale = 4.2;
+  const float cloudDetailReliefMix = 0.11;
+  const float cloudMaskBoost = 0.90;
+  const float cloudThinBoostMix = 0.20;
+  const float cloudSelfShadowStrength = 0.30;
 
   float3 tangentForNormal(float3 normal) {
     return normalize(cross(normal, float3(0.0, 1.0, 0.0)) + float3(0.0001, 0.0, 0.0));
   }
 
-  float3 cubeArrayCoord(float3 normal) {
-    float3 n = normalize(normal);
-    float3 a = abs(n);
-    float2 uv;
-    float layer;
-    if (a.x >= a.y && a.x >= a.z) {
-      if (n.x > 0.0) {
-        uv = float2(-n.z, -n.y) / a.x;
-        layer = 0.0;
-      } else {
-        uv = float2(n.z, -n.y) / a.x;
-        layer = 1.0;
-      }
-    } else if (a.y >= a.x && a.y >= a.z) {
-      if (n.y > 0.0) {
-        uv = float2(n.x, n.z) / a.y;
-        layer = 2.0;
-      } else {
-        uv = float2(n.x, -n.z) / a.y;
-        layer = 3.0;
-      }
-    } else {
-      if (n.z > 0.0) {
-        uv = float2(n.x, -n.y) / a.z;
-        layer = 4.0;
-      } else {
-        uv = float2(-n.x, -n.y) / a.z;
-        layer = 5.0;
-      }
-    }
-    return float3(uv * 0.5 + 0.5, layer);
-  }
-
   float sampleCloudMask(float3 normal) {
-    return texture(materialParams_cloudMaskMap, cubeArrayCoord(normal)).r;
+    return texture(materialParams_cloudMaskMap, normalize(normal)).r;
   }
 
   float sampleCloudDetail(float3 normal) {
-    return texture(materialParams_cloudDetailMap, cubeArrayCoord(normal)).r;
+    return texture(materialParams_cloudDetailMap, normalize(normal)).r;
   }
 
   float boostThinCloudMask(float mask) {
@@ -169,68 +90,37 @@ fragment {
     float maskNegativeBitangent = sampleCloudMask(cloudLookup - cloudBitangent * cloudMaskSampleOffset);
     float maskBlur =
       (maskPositiveTangent + maskNegativeTangent + maskPositiveBitangent + maskNegativeBitangent) * 0.25;
-    float featheredWeatherMask = mix(weatherMask, maskBlur, 0.28);
+    float featheredWeatherMask = mix(weatherMask, maskBlur, 0.34);
     float weatherShadowMask = sampleCloudMask(shadowLookup);
     float boostedWeatherMask = boostThinCloudMask(featheredWeatherMask);
     float boostedWeatherShadowMask = boostThinCloudMask(weatherShadowMask);
 
     float detailCenter = sampleCloudDetail(cloudLookup);
-    float detailPositiveTangent = sampleCloudDetail(cloudLookup + cloudTangent * cloudDetailSampleOffset);
-    float detailNegativeTangent = sampleCloudDetail(cloudLookup - cloudTangent * cloudDetailSampleOffset);
-    float detailPositiveBitangent = sampleCloudDetail(cloudLookup + cloudBitangent * cloudDetailSampleOffset);
-    float detailNegativeBitangent = sampleCloudDetail(cloudLookup - cloudBitangent * cloudDetailSampleOffset);
-    float detailBlur =
-      (detailPositiveTangent + detailNegativeTangent + detailPositiveBitangent + detailNegativeBitangent) * 0.25;
-    float detailResidual = detailCenter - detailBlur;
-    float detailFine = clamp(0.5 + detailResidual * 1.5, 0.0, 1.0);
-    float detailMinimum =
-      min(
-        detailCenter,
-        min(
-          min(detailPositiveTangent, detailNegativeTangent),
-          min(detailPositiveBitangent, detailNegativeBitangent)
-        )
-      );
-    float detailMaximum =
-      max(
-        detailCenter,
-        max(
-          max(detailPositiveTangent, detailNegativeTangent),
-          max(detailPositiveBitangent, detailNegativeBitangent)
-        )
-      );
-    float detailRange = detailMaximum - detailMinimum;
-    float detailDome =
-      mix(
-        0.5,
-        smoothstep(0.08, 0.92, (detailCenter - detailMinimum) / max(detailRange, 0.04)),
-        smoothstep(0.04, 0.18, detailRange)
-      );
-
-    float fineModulation = mix(0.80, 0.96, detailFine);
+    float detailPositiveTangent =
+      sampleCloudDetail(cloudLookup + cloudTangent * cloudDetailSampleOffset);
+    float detailPositiveBitangent =
+      sampleCloudDetail(cloudLookup + cloudBitangent * cloudDetailSampleOffset);
+    float detailDome = smoothstep(0.12, 0.88, detailCenter);
+    float fineModulation = mix(0.94, 1.04, smoothstep(0.10, 0.90, detailCenter));
     float cloudDensity = boostedWeatherMask * fineModulation * cloudMaskBoost;
     float cloudShadowDensity = boostedWeatherShadowMask * fineModulation * cloudMaskBoost;
-    float cloudCoverage = smoothstep(0.10, 0.94, cloudDensity);
-    float cloudCore = smoothstep(0.35, 0.82, cloudCoverage);
-    float maskPeak = clamp((weatherMask - maskBlur) * 2.4 + 0.5, 0.0, 1.0);
-    float baseHeight = smoothstep(0.08, 0.92, clamp(cloudDensity, 0.0, 1.0));
+    float cloudCoverage = smoothstep(0.13, 0.92, cloudDensity);
+    float cloudCore = smoothstep(0.30, 0.86, cloudCoverage);
+    float maskPeak = clamp((weatherMask - maskBlur) * 1.7 + 0.5, 0.0, 1.0);
+    float baseHeight = smoothstep(0.12, 0.90, cloudDensity);
     float puffHeight =
       clamp(
-        baseHeight * mix(0.68, 1.12, detailDome) +
-          (maskPeak - 0.5) * cloudCore * 0.26,
+        baseHeight * 0.90 +
+          (maskPeak - 0.5) * cloudCore * 0.18 +
+          (detailDome - 0.5) * cloudCore * 0.12,
         0.0,
         1.0
       );
     float cavity =
-      clamp(
-        (0.5 - detailDome) * smoothstep(0.04, 0.18, detailRange) * 0.45 +
-          (maskBlur - weatherMask) * 1.35,
-        0.0,
-        1.0
-      ) * cloudCore;
+      clamp((maskBlur - weatherMask) * 0.90, 0.0, 1.0) * cloudCore;
     float selfShadow =
       clamp(
-        (cloudShadowDensity - cloudDensity) * 1.55 + cavity * 0.42,
+        (cloudShadowDensity - cloudDensity) * 1.20 + cavity * 0.26,
         0.0,
         1.0
       );
@@ -242,24 +132,28 @@ fragment {
       );
     float2 detailGradient =
       float2(
-        detailPositiveTangent - detailNegativeTangent,
-        detailPositiveBitangent - detailNegativeBitangent
+        detailPositiveTangent - detailCenter,
+        detailPositiveBitangent - detailCenter
       );
-    float2 cloudGradient = maskGradient * 0.94 + detailGradient * boostedWeatherMask * 0.12;
+    float2 cloudGradient =
+      maskGradient + detailGradient * cloudCore * cloudDetailReliefMix;
     float3 cloudNormal =
       normalize(
         cloudLookup - cloudTangent * cloudGradient.x * cloudReliefScale -
           cloudBitangent * cloudGradient.y * cloudReliefScale
       );
     float directionalLight =
-      (0.50 + 0.50 * smoothstep(-0.20, 0.85, dot(cloudNormal, cloudLightVector))) *
+      (0.62 + 0.38 * smoothstep(-0.20, 0.85, dot(cloudNormal, cloudLightVector))) *
       (1.0 - selfShadow * cloudSelfShadowStrength);
-    float interiorRelief = mix(0.70, 1.22, puffHeight) * (1.0 - cavity * 0.22);
+    float interiorRelief =
+      mix(0.82, 1.10, puffHeight) *
+      mix(0.93, 1.10, detailDome) *
+      (1.0 - cavity * 0.12);
 
     float dayFactor = smoothstep(-0.18, 0.28, lightDirection);
-    float opacityRelief = mix(0.36, 0.88, smoothstep(0.08, 0.92, puffHeight));
-    float dayOpacity = 0.62 * cloudCoverage * opacityRelief;
-    float nightOpacity = 0.30 * cloudCoverage * mix(0.38, 0.78, opacityRelief);
+    float opacityRelief = mix(0.42, 0.86, smoothstep(0.10, 0.90, puffHeight));
+    float dayOpacity = 0.58 * cloudCoverage * opacityRelief;
+    float nightOpacity = 0.28 * cloudCoverage * mix(0.42, 0.78, opacityRelief);
     float opacity = mix(nightOpacity, dayOpacity, dayFactor);
     float3 dayColor =
       mix(

@@ -53,12 +53,11 @@ internal object FilamentKtxCubeTextureArrayLoader {
     val texture: Texture =
       Texture
         .Builder()
-        .sampler(Texture.Sampler.SAMPLER_2D_ARRAY)
+        .sampler(TEXTURE_TARGET)
         .usage(Texture.Usage.UPLOADABLE or Texture.Usage.SAMPLEABLE)
         .format(format)
         .width(pixelWidth)
         .height(pixelHeight)
-        .depth(CUBEMAP_FACE_COUNT)
         .levels(mipLevelCount)
         .build(engine)
 
@@ -68,14 +67,14 @@ internal object FilamentKtxCubeTextureArrayLoader {
       val faceBytes: Int = reader.int
       offset += INT_BYTES
       val facePadding: Int = padding4(faceBytes)
-      val levelBytes: Int = faceBytes * CUBEMAP_FACE_COUNT
-      val levelBuffer: ByteBuffer = bufferSlice(buffer, offset, levelBytes)
-      texture.setTextureArrayLevel(
+      val uploadLayout: CubemapUploadLayout = cubemapUploadLayout(faceBytes)
+      val levelBuffer: ByteBuffer = bufferSlice(buffer, offset, uploadLayout.levelBytes)
+      texture.setCubemapLevel(
         engine = engine,
         level = level,
         buffer = levelBuffer,
         compressedFormat = compressedFormat,
-        levelBytes = levelBytes
+        uploadLayout = uploadLayout
       )
       offset += (faceBytes + facePadding) * CUBEMAP_FACE_COUNT
       offset += padding4(offset)
@@ -119,15 +118,27 @@ internal object FilamentKtxCubeTextureArrayLoader {
   private fun padding4(value: Int): Int =
     (FOUR_BYTE_ALIGNMENT - value % FOUR_BYTE_ALIGNMENT) % FOUR_BYTE_ALIGNMENT
 
-  @Suppress("DEPRECATION")
-  private fun Texture.setTextureArrayLevel(
+  internal fun cubemapUploadLayout(faceBytes: Int): CubemapUploadLayout {
+    require(faceBytes > 0)
+    return CubemapUploadLayout(
+      descriptorBytes = faceBytes * CUBEMAP_FACE_COUNT,
+      levelBytes = faceBytes * CUBEMAP_FACE_COUNT
+    )
+  }
+
+  private fun Texture.setCubemapLevel(
     engine: Engine,
     level: Int,
     buffer: ByteBuffer,
     compressedFormat: Texture.CompressedFormat,
-    levelBytes: Int
+    uploadLayout: CubemapUploadLayout
   ) {
-    val descriptor = Texture.PixelBufferDescriptor(buffer, compressedFormat, levelBytes)
+    val descriptor =
+      Texture.PixelBufferDescriptor(
+        buffer,
+        compressedFormat,
+        uploadLayout.descriptorBytes
+      )
     // A callback makes Filament hold a reference to the upload buffer until the
     // async GPU upload completes, then release it (so it can be reclaimed).
     descriptor.setCallback(null, FilamentUploadBuffers.RELEASE_AFTER_UPLOAD)
@@ -143,6 +154,11 @@ internal object FilamentKtxCubeTextureArrayLoader {
       descriptor
     )
   }
+
+  internal data class CubemapUploadLayout(
+    val descriptorBytes: Int,
+    val levelBytes: Int
+  )
 
   private val KTX_IDENTIFIER: ByteArray =
     byteArrayOf(
@@ -169,4 +185,5 @@ internal object FilamentKtxCubeTextureArrayLoader {
   private const val HEADER_FIELDS_OFFSET: Int = 12
   private const val INT_BYTES: Int = 4
   private const val LITTLE_ENDIAN_MARKER: Int = 0x04030201
+  internal val TEXTURE_TARGET: Texture.Sampler = Texture.Sampler.SAMPLER_CUBEMAP
 }

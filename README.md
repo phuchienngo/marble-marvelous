@@ -113,7 +113,7 @@ Application id and package: `com.phuchienngo.marblemarvelous`.
   `assets/filament/*.filamat` holds the precompiled Vulkan mobile
   material packages loaded by the renderer.
 - `filament/FilamentKtxCubeTextureArrayLoader.kt` uploads compressed KTX cube
-  faces as six-layer texture arrays for the Vulkan renderer.
+  faces as native cubemaps so filtering remains continuous across face edges.
 - `filament/FilamentG3dbEarthMesh.kt` parses the bundled Earth mesh directly
   without a libGDX asset loader.
 - `weather/NasaClouds.kt` builds cached raw cloud-mask faces from public NASA
@@ -138,22 +138,21 @@ Cloud mask cache:
 - Each face is `1024 x 1024` and stored as single-channel raw bytes:
   `{face}-nasa-v5.r8`.
 - Row smoothing and edge shaping run while writing each raw face.
-- `FilamentEarthTextures` validates the six raw faces, uploads a Filament `R8`
-  texture array off the main thread, skips the rebuild entirely when the
-  freshly generated faces are byte-identical (CRC32 check) to what's already
-  shown, and keeps the direct upload buffer alive for the texture lifetime.
+- `FilamentEarthTextures` validates the six raw faces, builds the complete R8
+  mip chain off the main thread, uploads it as a Filament cubemap, and skips
+  the GPU rebuild when the freshly generated faces are byte-identical (CRC32)
+  to what's already shown.
 - Missing or invalid cached faces use the bundled `earth/clouds.ktx`.
 
 Shader cloud composition:
 
-- Samples the live mask and bundled detail through a continuous tangent-space
-  blur, plus a 3-octave value-noise fbm for fine structure beyond the source
-  resolution.
-- Boosts thin masks with a square-root blend.
+- Samples the live mask through a small tangent-space neighborhood and uses a
+  three-sample bundled-detail gradient for subtle core relief.
+- Gently boosts thin masks with a square-root blend.
 - Uses the weather mask for realtime cloud placement and the bundled detail
   for local cloud texture.
-- Computes a shadow-offset sample for soft cloud shadow and relief, with a
-  silver-lining edge highlight and a golden-hour tint near the terminator.
+- Computes a sun-relative shadow sample and mask-gradient normal for soft cloud
+  relief without deforming the sphere mesh into visible facets.
 
 NASA GIBS is public and requires no account, API key, generated secret resource,
 or build-time environment variable. If imagery is temporarily unavailable, the
@@ -188,8 +187,8 @@ renderer keeps the last valid cache or the bundled `earth/clouds.ktx` fallback.
   (lock/unlock, app switches) — only the swap chain is recreated — and the
   swap chain is torn down without a main-thread `flushAndWait()` to avoid an
   ANR during Surface teardown.
-- Texture assets are uploaded as compressed KTX/raw six-layer texture arrays and
-  stay out of the Java heap after upload.
+- Texture assets are uploaded as compressed KTX/R8 cubemaps and stay out of the
+  Java heap after upload.
 
 ## Native Libraries
 
