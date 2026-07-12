@@ -38,7 +38,7 @@
 
         <activity
             android:name="com.phuchienngo.marblemarvelous.permissions.PermissionsActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/permissions_activity"
             android:theme="@style/Theme.Transparent" />
     </application>

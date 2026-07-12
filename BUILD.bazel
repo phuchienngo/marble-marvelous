@@ -7,10 +7,6 @@ package(default_visibility = ["//visibility:public"])
 
 exports_files(["debug.keystore"])
 
-# Platform-based Android build target (replaces the deprecated --fat_apk_cpu).
-# Wired as the default via --android_platforms in .bazelrc. The device is
-# arm64-v8a; add more platforms and list them all in --android_platforms to
-# produce a fat APK. https://blog.bazel.build/2023/11/15/android-platforms.html
 platform(
     name = "android_arm64",
     constraint_values = [
@@ -19,8 +15,6 @@ platform(
     ],
 )
 
-# Kotlin 2.4 language level, targeting JVM 17 bytecode (matches old Gradle build).
-# Registered as root toolchain in MODULE.bazel via //:kotlin_toolchain.
 define_kt_toolchain(
     name = "kotlin_toolchain",
     api_version = "2.4",
@@ -33,10 +27,10 @@ kt_ksp_plugin(
     generates_java = True,
     processor_class = "dagger.hilt.processor.internal.root.HiltProcessor",
     deps = [
-        "@maven//:com_google_dagger_hilt_android_compiler",
-        "@maven//:com_google_dagger_hilt_core",
         "@maven//:com_google_dagger_dagger",
         "@maven//:com_google_dagger_dagger_compiler",
+        "@maven//:com_google_dagger_hilt_android_compiler",
+        "@maven//:com_google_dagger_hilt_core",
     ],
 )
 
@@ -103,104 +97,104 @@ _TEST_DEPS = [
 kt_jvm_test(
     name = "EarthLocationMathTest",
     srcs = ["test/earth/EarthLocationMathTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.earth.EarthLocationMathTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.earth.EarthLocationMathTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FailureCleanupStackTest",
     srcs = ["test/filament/FailureCleanupStackTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FailureCleanupStackTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FailureCleanupStackTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentCameraFramingTest",
     srcs = ["test/filament/FilamentCameraFramingTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentCameraFramingTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentCameraFramingTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentEarthAssetPathsTest",
     srcs = ["test/filament/FilamentEarthAssetPathsTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthAssetPathsTest",
-    data = ["//assets:assets"],
     associates = [":app_lib"],
+    data = ["//assets"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthAssetPathsTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentEarthMotionTest",
     srcs = ["test/filament/FilamentEarthMotionTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthMotionTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentEarthMotionTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "WallpaperLifecycleRegressionTest",
     srcs = ["test/filament/WallpaperLifecycleRegressionTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.WallpaperLifecycleRegressionTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.WallpaperLifecycleRegressionTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentG3dbEarthMeshTest",
     srcs = ["test/filament/FilamentG3dbEarthMeshTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentG3dbEarthMeshTest",
-    data = ["//assets:assets"],
     associates = [":app_lib"],
+    data = ["//assets"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentG3dbEarthMeshTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentMaterialAssetPathsTest",
     srcs = ["test/filament/FilamentMaterialAssetPathsTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentMaterialAssetPathsTest",
-    data = ["//assets:assets"],
     associates = [":app_lib"],
+    data = ["//assets"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentMaterialAssetPathsTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentMaterialSourceChecksumTest",
     srcs = ["test/filament/FilamentMaterialSourceChecksumTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentMaterialSourceChecksumTest",
+    associates = [":app_lib"],
     data = [
         "materials/checksums.sha256",
         "materials/earth.mat",
         "materials/stars.mat",
     ],
-    associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentMaterialSourceChecksumTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "FilamentSunDirectionTest",
     srcs = ["test/filament/FilamentSunDirectionTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentSunDirectionTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.filament.FilamentSunDirectionTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "LocationFallbackTest",
     srcs = ["test/location/LocationFallbackTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.location.LocationFallbackTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.location.LocationFallbackTest",
     deps = _TEST_DEPS,
 )
 
 kt_jvm_test(
     name = "OpenWeatherCloudsTest",
     srcs = ["test/weather/OpenWeatherCloudsTest.kt"],
-    test_class = "com.phuchienngo.marblemarvelous.weather.OpenWeatherCloudsTest",
     associates = [":app_lib"],
+    test_class = "com.phuchienngo.marblemarvelous.weather.OpenWeatherCloudsTest",
     deps = _TEST_DEPS,
 )
 

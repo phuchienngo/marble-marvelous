@@ -18,10 +18,18 @@ class PermissionsActivity : Activity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    val requestedPermissions: Array<String>? =
+      intent.getStringArrayExtra(UserPermissions.PERMISSIONS_REQUESTED)
     permissions =
-      intent.getStringArrayExtra(UserPermissions.PERMISSIONS_REQUESTED) ?: defaultPermissions()
+      if (requestedPermissions != null && requestedPermissions.contentEquals(defaultPermissions())) {
+        requestedPermissions
+      } else {
+        defaultPermissions()
+      }
+    val requestedKey: String? = intent.getStringExtra(UserPermissions.SHARED_PREF_KEY)
     sharedPreferencesKey =
-      intent.getStringExtra(UserPermissions.SHARED_PREF_KEY) ?: LocationPermissions.LOCATION_KEY
+      requestedKey.takeIf { key: String? -> key == LocationPermissions.LOCATION_KEY }
+        ?: LocationPermissions.LOCATION_KEY
     if (permissions.isEmpty()) {
       savePermissionResult(granted = true)
       finish()

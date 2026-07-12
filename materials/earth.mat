@@ -39,10 +39,11 @@ fragment {
   const float cloudIntensityDay = 0.62;
   const float cloudIntensityNight = 0.36;
   const float cloudShadowIntensity = 0.40;
-  const float cloudBlurOffset = 0.0040;
-  const float cloudGradientOffset = 0.0030;
-  const float cloudReliefScale = 16.0;
-  const float cloudMaskBoost = 1.85;
+  const float cloudBlurOffset = 0.0016;
+  const float cloudDetailSharpness = 0.85;
+  const float cloudGradientOffset = 0.0024;
+  const float cloudReliefScale = 12.0;
+  const float cloudMaskBoost = 1.70;
   const float cloudThinBoostMix = 0.65;
   const float cloudPuffReliefStrength = 0.52;
   const float cloudPuffOpacityStrength = 0.15;
@@ -120,11 +121,11 @@ fragment {
     float3 n = normalize(normal);
     float3 tangent = tangentForNormal(n);
     float3 bitangent = cross(n, tangent);
-    float cloud = sampleCloudMaskTexture(n) * 0.48;
-    cloud += sampleCloudMaskTexture(n + tangent * cloudBlurOffset) * 0.13;
-    cloud += sampleCloudMaskTexture(n - tangent * cloudBlurOffset) * 0.13;
-    cloud += sampleCloudMaskTexture(n + bitangent * cloudBlurOffset) * 0.13;
-    cloud += sampleCloudMaskTexture(n - bitangent * cloudBlurOffset) * 0.13;
+    float cloud = sampleCloudMaskTexture(n) * 0.76;
+    cloud += sampleCloudMaskTexture(n + tangent * cloudBlurOffset) * 0.06;
+    cloud += sampleCloudMaskTexture(n - tangent * cloudBlurOffset) * 0.06;
+    cloud += sampleCloudMaskTexture(n + bitangent * cloudBlurOffset) * 0.06;
+    cloud += sampleCloudMaskTexture(n - bitangent * cloudBlurOffset) * 0.06;
     return cloud;
   }
 
@@ -132,21 +133,29 @@ fragment {
     float3 n = normalize(normal);
     float3 tangent = tangentForNormal(n);
     float3 bitangent = cross(n, tangent);
-    float cloud = sampleCloudDetailTexture(n) * 0.48;
-    cloud += sampleCloudDetailTexture(n + tangent * cloudBlurOffset) * 0.13;
-    cloud += sampleCloudDetailTexture(n - tangent * cloudBlurOffset) * 0.13;
-    cloud += sampleCloudDetailTexture(n + bitangent * cloudBlurOffset) * 0.13;
-    cloud += sampleCloudDetailTexture(n - bitangent * cloudBlurOffset) * 0.13;
-    return cloud;
+    float center = sampleCloudDetailTexture(n);
+    float blur = sampleCloudDetailTexture(n + tangent * cloudBlurOffset);
+    blur += sampleCloudDetailTexture(n - tangent * cloudBlurOffset);
+    blur += sampleCloudDetailTexture(n + bitangent * cloudBlurOffset);
+    blur += sampleCloudDetailTexture(n - bitangent * cloudBlurOffset);
+    blur *= 0.25;
+    return clamp(center + (center - blur) * cloudDetailSharpness, 0.0, 1.0);
+  }
+
+  float sampleCloudHeightTexture(float3 normal) {
+    float mask = sampleCloudMaskTexture(normal);
+    float detail = sampleCloudDetailTexture(normal);
+    float raisedMask = mix(mask, sqrt(max(mask, 0.0)), cloudThinBoostMix);
+    return raisedMask * mix(0.52, 1.0, detail);
   }
 
   float2 sampleCloudGradient(float3 normal, float3 tangent, float3 bitangent) {
     float horizontal =
-      sampleCloudMaskTexture(normal + tangent * cloudGradientOffset) -
-      sampleCloudMaskTexture(normal - tangent * cloudGradientOffset);
+      sampleCloudHeightTexture(normal + tangent * cloudGradientOffset) -
+      sampleCloudHeightTexture(normal - tangent * cloudGradientOffset);
     float vertical =
-      sampleCloudMaskTexture(normal + bitangent * cloudGradientOffset) -
-      sampleCloudMaskTexture(normal - bitangent * cloudGradientOffset);
+      sampleCloudHeightTexture(normal + bitangent * cloudGradientOffset) -
+      sampleCloudHeightTexture(normal - bitangent * cloudGradientOffset);
     return float2(horizontal, vertical);
   }
 
@@ -199,7 +208,9 @@ fragment {
       cloudLookup - cloudTangent * cloudGradient.x * cloudReliefScale -
       cloudBitangent * cloudGradient.y * cloudReliefScale
     );
-    float cloudDirectionalLight = 0.72 + 0.28 * smoothstep(-0.15, 0.85, dot(cloudNormal, lightVector));
+    float3 cloudLightVector = cloudLookupTransform(lightVector);
+    float cloudDirectionalLight = 0.72 + 0.28 * smoothstep(-0.15, 0.85, dot(cloudNormal, cloudLightVector));
+    float cloudInteriorRelief = mix(0.88, 1.08, smoothstep(0.20, 0.80, cloudDetail));
     float cloudEdge = 4.0 * cloudCoverage * (1.0 - cloudCoverage);
     float silverLining =
       cloudEdge * pow(1.0 - eyeLight, 3.0) * smoothstep(-0.20, 0.55, lightDirection);
@@ -208,10 +219,11 @@ fragment {
     float nightCloudOpacity = cloudIntensityNight * cloudCoverage * (0.70 + cloudRelief * 0.25);
     float3 dayCloudColor = mix(float3(1.0), float3(0.96, 0.97, 0.99), (1.0 - cloudRelief) * 0.08);
     dayCloudColor = mix(dayCloudColor, float3(1.0), cloudWhiteLift);
-    dayCloudColor *= cloudDirectionalLight * (0.97 + cloudRelief * 0.12 + cloudSun * 0.04);
+    dayCloudColor *= cloudDirectionalLight * cloudInteriorRelief * (0.97 + cloudRelief * 0.12 + cloudSun * 0.04);
     dayCloudColor += float3(0.82, 0.91, 1.0) * silverLining * 0.16;
     dayCloudColor = clamp(dayCloudColor, 0.0, 1.0);
-    float3 nightCloudColor = mix(float3(0.28, 0.31, 0.38), float3(0.36, 0.40, 0.48), cloudRelief);
+    float3 nightCloudColor =
+      mix(float3(0.28, 0.31, 0.38), float3(0.36, 0.40, 0.48), cloudRelief) * cloudInteriorRelief;
 
     float daylight = smoothstep(-0.12, 0.30, lightDirection);
     float night = 1.0 - smoothstep(-0.14, 0.22, lightDirection);
@@ -223,9 +235,10 @@ fragment {
     float3 nightSurface = sampleNightTexture(lookup);
     float nightRim = smoothstep(0.0, 0.8, 1.0 - eyeLight);
     nightSurface -= nightRim * 0.05;
-    nightSurface = mix(nightSurface, nightCloudColor, nightCloudOpacity);
     nightSurface *= smoothstep(0.0, 1.0, eyeLight);
     nightSurface *= 0.82 + night * 0.18;
+    float nightCloudVisibility = 0.42 + eyeLight * 0.58;
+    nightSurface = mix(nightSurface, nightCloudColor * nightCloudVisibility, nightCloudOpacity);
 
     float limbNight = smoothstep(0.48, 0.95, 1.0 - eyeLight) * smoothstep(0.20, 0.95, inverseLightDirection);
     float nightMix = max(1.0 - daylight, limbNight * 0.42);
@@ -247,7 +260,8 @@ fragment {
     edgeGlow *= max(lightDirection, 0.0);
     float edgeMix = smoothstep(0.1, 0.38, eyeLight);
     float3 atmosphere = mix(float3(0.38, 0.69, 0.95), float3(0.68, 0.82, 0.94), edgeMix);
-    base = mix(base, atmosphere, edgeGlow * 0.55);
+    float atmosphereOverCloud = 1.0 - cloudCoverage * 0.72;
+    base = mix(base, atmosphere, edgeGlow * 0.55 * atmosphereOverCloud);
 
     // Aurora: an animated curtain around the auroral oval on the night side. The
     // oval sits near 66 deg latitude and expands toward the equator as activity
