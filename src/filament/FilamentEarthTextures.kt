@@ -111,6 +111,10 @@ internal class FilamentEarthTextures private constructor(
   }
 
   companion object {
+    internal val SURFACE_MIN_FILTER: TextureSampler.MinFilter =
+      TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR
+    internal const val SURFACE_ANISOTROPY: Float = 4.0f
+
     // The cloud mask starts on the bundled detail map and is upgraded to the
     // real NASA faces asynchronously via reloadCloudMask, so construction
     // never blocks the render thread on the cached-face file read.
@@ -145,10 +149,12 @@ internal class FilamentEarthTextures private constructor(
         cloudDetailMap = cloudDetailMap,
         surfaceSampler =
           TextureSampler(
-            TextureSampler.MinFilter.LINEAR,
+            SURFACE_MIN_FILTER,
             TextureSampler.MagFilter.LINEAR,
             TextureSampler.WrapMode.CLAMP_TO_EDGE
-          ),
+          ).apply {
+            setAnisotropy(SURFACE_ANISOTROPY)
+          },
         cloudMaskSampler =
           TextureSampler(
             TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
@@ -301,7 +307,7 @@ internal class FilamentEarthTextures private constructor(
 
     private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
     private const val FACE_SIZE: Int = 1024
-    private const val CLOUD_DETAIL_ANISOTROPY: Float = 4.0f
+    private const val CLOUD_DETAIL_ANISOTROPY: Float = SURFACE_ANISOTROPY
     private const val RAW_FACE_EXTENSION: String = ".r8"
     private const val RAW_FACE_VERSION: String = "-nasa-v5"
   }

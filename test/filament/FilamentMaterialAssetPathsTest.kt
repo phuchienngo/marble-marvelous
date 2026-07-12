@@ -1,10 +1,21 @@
 package com.phuchienngo.marblemarvelous.filament
 
+import com.google.android.filament.TextureSampler
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
 class FilamentMaterialAssetPathsTest {
+  @Test
+  fun surfaceTexturesUseMipFiltering() {
+    assertEquals(
+      TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
+      FilamentEarthTextures.SURFACE_MIN_FILTER
+    )
+    assertEquals(4.0f, FilamentEarthTextures.SURFACE_ANISOTROPY, 0.0f)
+  }
+
   @Test
   fun precompiledMaterialAssetsExist() {
     val materialAssetPaths: Set<String> =
