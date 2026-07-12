@@ -49,6 +49,11 @@ class FilamentEarthAssetPathsTest {
     assertEquals("earth/dayMap-Spring-Fall.ktx", FilamentEarthAssetPaths.dayMapForMonth(11))
   }
 
+  @Test
+  fun cloudMaskUsesCompleteMipmapChain() {
+    assertEquals(11, FilamentEarthTextures.mipLevelCount(faceSize = 1024))
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun rejectsInvalidMonth() {
     FilamentEarthAssetPaths.dayMapForMonth(13)

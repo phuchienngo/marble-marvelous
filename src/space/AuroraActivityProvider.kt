@@ -1,11 +1,12 @@
 package com.phuchienngo.marblemarvelous.space
 
 import android.util.Log
-import com.phuchienngo.marblemarvelous.di.PlatformHttpClient
-import com.phuchienngo.marblemarvelous.di.PlatformHttpResponse
-import com.phuchienngo.marblemarvelous.di.awaitResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
+import javax.net.ssl.HttpsURLConnection
 
 /**
  * Fetches the NOAA SWPC planetary Kp index and maps it to a 0..1 aurora
@@ -14,19 +15,26 @@ import javax.inject.Singleton
 @Singleton
 internal class AuroraActivityProvider
 @Inject
-constructor(
-  private val httpClient: PlatformHttpClient
-) {
+constructor() {
   suspend fun currentActivity(): Float? =
-    try {
-      val response: PlatformHttpResponse = httpClient.get(KP_INDEX_URL).awaitResult()
-      if (!response.isSuccessful) {
-        return null
+    withContext(Dispatchers.IO) {
+      var connection: HttpsURLConnection? = null
+      try {
+        connection = URI(KP_INDEX_URL).toURL().openConnection() as HttpsURLConnection
+        connection.connectTimeout = HTTP_TIMEOUT_MILLIS
+        connection.readTimeout = HTTP_TIMEOUT_MILLIS
+        connection.requestMethod = HTTP_GET_METHOD
+        if (connection.responseCode !in SUCCESS_STATUS_RANGE) {
+          return@withContext null
+        }
+        val json: String = connection.inputStream.bufferedReader().use { reader -> reader.readText() }
+        parseActivity(json)
+      } catch (e: Exception) {
+        Log.e(TAG, "Failed to fetch planetary Kp index", e)
+        null
+      } finally {
+        connection?.disconnect()
       }
-      parseActivity(response.body.toString(Charsets.UTF_8))
-    } catch (e: Exception) {
-      Log.e(TAG, "Failed to fetch planetary Kp index", e)
-      null
     }
 
   internal companion object {
@@ -76,5 +84,8 @@ constructor(
     private const val KP_FIELD: String = "Kp"
     private const val MAX_KP: Double = 9.0
     private const val AURORA_BASELINE: Double = 0.15
+    private const val HTTP_TIMEOUT_MILLIS: Int = 15_000
+    private const val HTTP_GET_METHOD: String = "GET"
+    private val SUCCESS_STATUS_RANGE: IntRange = 200..299
   }
 }

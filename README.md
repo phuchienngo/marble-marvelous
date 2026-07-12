@@ -2,7 +2,7 @@
 
 Android live wallpaper that renders a 3D Earth with Filament on the Vulkan
 backend. The wallpaper shows seasonal day cube maps, night city lights,
-atmosphere, ocean specular, live OpenWeather cloud cover with bundled detail
+atmosphere, ocean specular, NASA MODIS cloud cover with bundled detail
 shading, an aurora curtain driven by the real planetary Kp index, and a "you
 are here" location marker.
 
@@ -10,12 +10,12 @@ are here" location marker.
 
 - Kotlin Android app with a direct Filament live-wallpaper renderer.
 - App-scoped dependencies are managed by Hilt.
-- Networking uses the Android HTTPS stack behind `CompletableFuture`.
+- Networking runs directly on `Dispatchers.IO` through Android HTTPS connections.
 - NOAA and bundled country data use small format-specific parsers.
 - Date/time math uses `java.time`.
 - Runtime permission screen is a plain `View`.
 - Vulkan is requested through Filament's Android backend.
-- Cached cloud masks are generated from OpenWeather `clouds_new` tiles.
+- Cached cloud masks are generated from NASA GIBS MODIS cloud-fraction imagery.
 - Aurora activity is polled from the NOAA SWPC planetary Kp-index feed while
   the wallpaper is visible, and paused otherwise.
 - The location marker shares one app-scoped `UserLocationEarth` instance
@@ -36,7 +36,7 @@ are here" location marker.
 
 ## Build
 
-Copy the user-specific Bazel config template and fill in your local paths/API key:
+Copy the user-specific Bazel config template and fill in your local paths:
 
 ```sh
 cp user.bazelrc.template user.bazelrc
@@ -50,11 +50,8 @@ bazel build //:app --compilation_mode=opt
 adb install -r bazel-bin/app.apk
 ```
 
-If you prefer to keep paths/keys in environment variables instead of `user.bazelrc`,
+If you prefer to keep paths in environment variables instead of `user.bazelrc`,
 export them in your shell (see the comments in `user.bazelrc.template`).
-
-In CI, `user.bazelrc` is generated automatically with a dummy OpenWeather API key
-so tests and the release build can run without a real secret.
 
 Generated APK:
 
@@ -91,7 +88,7 @@ bazel test //:app_test
 | JVM target | **17** |
 | Filament | **1.72.0** |
 | Kotlin Coroutines | **1.11.0** |
-| HTTP | Android `HttpsURLConnection` + `CompletableFuture` |
+| HTTP | Android `HttpsURLConnection` on `Dispatchers.IO` |
 | Hilt (Dagger) | **2.60** |
 
 Application id and package: `com.phuchienngo.marblemarvelous`.
@@ -100,11 +97,9 @@ Application id and package: `com.phuchienngo.marblemarvelous`.
 
 - `MarbleApplication.kt` is the `@HiltAndroidApp` entry point and extends the
   KSP-generated `Hilt_MarbleApplication` base.
-- `di/MarbleModule.kt` provides the lightweight platform HTTP wrapper, its
-  executor, the IO dispatcher, and the OpenWeather API key.
 - `filament/FilamentWallpaperService.kt` is an `@AndroidEntryPoint` and hosts the
   live wallpaper service; it drives the Choreographer frame loop and gates
-  the aurora/cloud refresh coroutines on wallpaper visibility. It extends
+  the aurora/cloud refresh coroutines on wallpaper visibility.
 - `filament/FilamentEarthRenderer.kt` owns the Filament engine, Vulkan
   backend, swapchain, camera, scene, and frame rendering. Multiple engines
   (home, lock screen, preview) can exist in the same process, retaining the
@@ -121,23 +116,27 @@ Application id and package: `com.phuchienngo.marblemarvelous`.
   faces as six-layer texture arrays for the Vulkan renderer.
 - `filament/FilamentG3dbEarthMesh.kt` parses the bundled Earth mesh directly
   without a libGDX asset loader.
-- `weather/OpenWeatherClouds.kt` builds cached raw cloud-mask faces from
-  OpenWeather map tiles over the Android HTTPS stack.
+- `weather/NasaClouds.kt` builds cached raw cloud-mask faces from public NASA
+  GIBS MODIS imagery over the Android HTTPS stack.
 
 ## Weather And Clouds
 
 The renderer uses two cloud inputs:
 
-- `cloudMaskMap`: live OpenWeather coverage generated in the app cache.
+- `cloudMaskMap`: recent NASA MODIS coverage generated in the app cache.
 - `cloudDetailMap`: bundled `assets/earth/clouds.ktx` detail.
 
 Cloud mask cache:
 
-- `OpenWeatherClouds` downloads OpenWeather `clouds_new` mercator tiles at
-  `SRC_ZOOM = 3` through the shared platform HTTP client.
-- Tiles are sampled into six cube faces: `px`, `nx`, `py`, `ny`, `pz`, `nz`.
-- Each face is `512 x 512` and stored as single-channel raw bytes:
-  `{face}-shape-v2.r8`.
+- `NasaClouds` downloads keyless 4096 x 2048 global WMS images for MODIS Aqua
+  and Terra day/night cloud-fraction layers.
+- The latest complete UTC day is merged first, then one older day fills any
+  remaining satellite swath gaps. Complete six-face caches are reused for the
+  rest of that observation day.
+- The equirectangular source is sampled into six cube faces: `px`, `nx`, `py`,
+  `ny`, `pz`, `nz`.
+- Each face is `1024 x 1024` and stored as single-channel raw bytes:
+  `{face}-nasa-v5.r8`.
 - Row smoothing and edge shaping run while writing each raw face.
 - `FilamentEarthTextures` validates the six raw faces, uploads a Filament `R8`
   texture array off the main thread, skips the rebuild entirely when the
@@ -156,14 +155,9 @@ Shader cloud composition:
 - Computes a shadow-offset sample for soft cloud shadow and relief, with a
   silver-lining edge highlight and a golden-hour tint near the terminator.
 
-OpenWeather API key:
-
-- Resource name: `openweather_api_key`
-- Set the `OPENWEATHER_API_KEY` environment variable when building. The value is
-  injected into `res/values/secrets.xml` by a `genrule` during the
-  Bazel build.
-- If the variable is unset or empty, the APK ships with an empty key and uses
-  the bundled cloud texture (`earth/clouds.ktx`) instead of live tiles.
+NASA GIBS is public and requires no account, API key, generated secret resource,
+or build-time environment variable. If imagery is temporarily unavailable, the
+renderer keeps the last valid cache or the bundled `earth/clouds.ktx` fallback.
 
 ## Aurora And Location Marker
 

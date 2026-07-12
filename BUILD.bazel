@@ -34,32 +34,13 @@ kt_ksp_plugin(
     ],
 )
 
-genrule(
-    name = "secrets_xml",
-    outs = ["res/values/secrets.xml"],
-    cmd_bash = """
-        mkdir -p $(@D)
-        key="$${OPENWEATHER_API_KEY:-}"
-        cat > $@ <<EOF
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="openweather_api_key" translatable="false">$${key}</string>
-</resources>
-EOF
-    """,
-    visibility = ["//visibility:private"],
-)
-
 kt_android_library(
     name = "app_lib",
     srcs = glob(["src/**/*.kt"]),
     custom_package = "com.phuchienngo.marblemarvelous",
     manifest = "LibraryManifest.xml",
     plugins = [":hilt_ksp"],
-    resource_files = glob(
-        ["res/**"],
-        exclude = ["res/values/secrets.xml"],
-    ) + [":secrets_xml"],
+    resource_files = glob(["res/**"]),
     deps = [
         "@maven//:com_google_android_filament_filament_android",
         "@maven//:com_google_dagger_dagger",
@@ -167,6 +148,7 @@ kt_jvm_test(
     associates = [":app_lib"],
     data = [
         "materials/checksums.sha256",
+        "materials/cloud-shell.mat",
         "materials/earth.mat",
         "materials/stars.mat",
     ],
@@ -191,10 +173,10 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "OpenWeatherCloudsTest",
-    srcs = ["test/weather/OpenWeatherCloudsTest.kt"],
+    name = "NasaCloudsTest",
+    srcs = ["test/weather/NasaCloudsTest.kt"],
     associates = [":app_lib"],
-    test_class = "com.phuchienngo.marblemarvelous.weather.OpenWeatherCloudsTest",
+    test_class = "com.phuchienngo.marblemarvelous.weather.NasaCloudsTest",
     deps = _TEST_DEPS,
 )
 
@@ -211,7 +193,7 @@ test_suite(
         ":FilamentMaterialSourceChecksumTest",
         ":FilamentSunDirectionTest",
         ":LocationFallbackTest",
-        ":OpenWeatherCloudsTest",
+        ":NasaCloudsTest",
         ":WallpaperLifecycleRegressionTest",
     ],
 )

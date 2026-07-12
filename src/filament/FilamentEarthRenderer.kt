@@ -48,8 +48,11 @@ internal class FilamentEarthRenderer(
   private val cameraEntity: Int
   private val camera: Camera
   private val earthEntity: Int
+  private val cloudEntity: Int
   private val material: Material
   private val materialInstance: MaterialInstance
+  private val cloudMaterial: Material
+  private val cloudMaterialInstance: MaterialInstance
   private val earthTextures: FilamentEarthTextures
   private val vertexBuffer: VertexBuffer
   private val indexBuffer: IndexBuffer
@@ -66,6 +69,13 @@ internal class FilamentEarthRenderer(
       1.0f, 0.0f, 0.0f, 0.0f,
       0.0f, 1.0f, 0.0f, 0.0f,
       0.0f, 0.0f, 1.0f, 0.0f,
+      0.0f, 0.0f, 0.0f, 1.0f
+    )
+  private val cloudTransform: FloatArray =
+    floatArrayOf(
+      CLOUD_SHELL_SCALE, 0.0f, 0.0f, 0.0f,
+      0.0f, CLOUD_SHELL_SCALE, 0.0f, 0.0f,
+      0.0f, 0.0f, CLOUD_SHELL_SCALE, 0.0f,
       0.0f, 0.0f, 0.0f, 1.0f
     )
 
@@ -142,11 +152,20 @@ internal class FilamentEarthRenderer(
       cleanupStack.register {
         engine.destroyMaterialInstance(materialInstance)
       }
+      cloudMaterial = FilamentEarthMaterial.createCloudShell(context, engine)
+      cleanupStack.register {
+        engine.destroyMaterial(cloudMaterial)
+      }
+      cloudMaterialInstance = cloudMaterial.createInstance()
+      cleanupStack.register {
+        engine.destroyMaterialInstance(cloudMaterialInstance)
+      }
       earthTextures = FilamentEarthTextures.create(context, engine)
       cleanupStack.register {
         earthTextures.destroy(engine)
       }
       earthTextures.bind(materialInstance)
+      earthTextures.bindCloudShell(cloudMaterialInstance)
       materialInstance.setParameter(FilamentEarthMaterial.AURORA_ACTIVITY, DEFAULT_AURORA_ACTIVITY)
 
       earthEntity = entityManager.create()
@@ -184,6 +203,43 @@ internal class FilamentEarthRenderer(
       scene.addEntity(earthEntity)
       cleanupStack.register {
         scene.removeEntity(earthEntity)
+      }
+
+      cloudEntity = entityManager.create()
+      cleanupStack.register {
+        entityManager.destroy(cloudEntity)
+      }
+      RenderableManager
+        .Builder(RENDERABLE_COUNT)
+        .geometry(
+          PRIMITIVE_INDEX,
+          RenderableManager.PrimitiveType.TRIANGLES,
+          vertexBuffer,
+          indexBuffer,
+          0,
+          mesh.indexCount
+        )
+        .material(PRIMITIVE_INDEX, cloudMaterialInstance)
+        .boundingBox(
+          Box(
+            0.0f,
+            0.0f,
+            0.0f,
+            mesh.boundingHalfExtent * CLOUD_SHELL_BOUND_SCALE,
+            mesh.boundingHalfExtent * CLOUD_SHELL_BOUND_SCALE,
+            mesh.boundingHalfExtent * CLOUD_SHELL_BOUND_SCALE
+          )
+        )
+        .culling(true)
+        .castShadows(false)
+        .receiveShadows(false)
+        .build(engine, cloudEntity)
+      cleanupStack.register {
+        engine.destroyEntity(cloudEntity)
+      }
+      scene.addEntity(cloudEntity)
+      cleanupStack.register {
+        scene.removeEntity(cloudEntity)
       }
 
       stars = FilamentStars.create(context, engine, entityManager)
@@ -283,17 +339,27 @@ internal class FilamentEarthRenderer(
   }
 
   suspend fun reloadCloudMask(context: Context): Boolean =
-    earthTextures.reloadCloudMask(context, engine, materialInstance)
+    earthTextures.reloadCloudMask(
+      context = context,
+      engine = engine,
+      surfaceMaterialInstance = materialInstance,
+      cloudMaterialInstance = cloudMaterialInstance
+    )
 
   fun destroy() {
     detachSurface()
+    scene.removeEntity(cloudEntity)
     scene.removeEntity(earthEntity)
     scene.removeEntity(stars.entity)
     stars.destroy(engine, entityManager)
+    engine.destroyEntity(cloudEntity)
+    entityManager.destroy(cloudEntity)
     engine.destroyEntity(earthEntity)
     entityManager.destroy(earthEntity)
     engine.destroyVertexBuffer(vertexBuffer)
     engine.destroyIndexBuffer(indexBuffer)
+    engine.destroyMaterialInstance(cloudMaterialInstance)
+    engine.destroyMaterial(cloudMaterial)
     engine.destroyMaterialInstance(materialInstance)
     engine.destroyMaterial(material)
     earthTextures.destroy(engine)
@@ -357,12 +423,19 @@ internal class FilamentEarthRenderer(
     earthTransform[2] = -sine
     earthTransform[8] = sine
     earthTransform[10] = cosine
+    cloudTransform[0] = cosine * CLOUD_SHELL_SCALE
+    cloudTransform[2] = -sine * CLOUD_SHELL_SCALE
+    cloudTransform[8] = sine * CLOUD_SHELL_SCALE
+    cloudTransform[10] = cosine * CLOUD_SHELL_SCALE
     val transformManager = engine.transformManager
-    val transformInstance: Int = transformManager.getInstance(earthEntity)
-    if (transformInstance == NO_TRANSFORM_INSTANCE) {
-      return
+    val earthTransformInstance: Int = transformManager.getInstance(earthEntity)
+    if (earthTransformInstance != NO_TRANSFORM_INSTANCE) {
+      transformManager.setTransform(earthTransformInstance, earthTransform)
     }
-    transformManager.setTransform(transformInstance, earthTransform)
+    val cloudTransformInstance: Int = transformManager.getInstance(cloudEntity)
+    if (cloudTransformInstance != NO_TRANSFORM_INSTANCE) {
+      transformManager.setTransform(cloudTransformInstance, cloudTransform)
+    }
   }
 
   private fun updateCameraIfNeeded() {
@@ -472,6 +545,12 @@ internal class FilamentEarthRenderer(
       sunDirection.y,
       sunDirection.z
     )
+    cloudMaterialInstance.setParameter(
+      FilamentEarthMaterial.SUN_DIRECTION,
+      sunDirection.x,
+      sunDirection.y,
+      sunDirection.z
+    )
   }
 
   companion object {
@@ -500,6 +579,8 @@ internal class FilamentEarthRenderer(
     private const val CAMERA_FAR: Double = 20.0
     private const val CAMERA_FOV_DEGREES: Float = 20.0f
     private const val CAMERA_NEAR: Double = 0.1
+    private const val CLOUD_SHELL_BOUND_SCALE: Float = 1.02f
+    private const val CLOUD_SHELL_SCALE: Float = 1.0040f
     private const val DATE_SAMPLE_INTERVAL_MILLIS: Long = 1000L
     private const val DEFAULT_AURORA_ACTIVITY: Float = 0.25f
     private const val EARTH_MODEL_ASSET: String = "earth/earth.g3db"

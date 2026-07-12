@@ -1,7 +1,12 @@
 package com.phuchienngo.marblemarvelous.filament
 
+import kotlinx.coroutines.CoroutineDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.ArrayDeque
+import kotlin.coroutines.CoroutineContext
 
 class WallpaperLifecycleRegressionTest {
   @Test
@@ -76,10 +81,41 @@ class WallpaperLifecycleRegressionTest {
     assertEquals(1, stops)
   }
 
+  @Test
+  fun rendererCleanupDoesNotRunInlineOnCaller() {
+    val dispatcher = QueuedDispatcher()
+    val cleanup = FilamentRendererCleanup(dispatcher)
+    var destroyed = false
+
+    cleanup.submit destroyRenderer@{
+      destroyed = true
+      return@destroyRenderer
+    }
+
+    assertFalse(destroyed)
+    dispatcher.runNext()
+    assertTrue(destroyed)
+  }
+
   private fun secondsToNanos(seconds: Long): Long = seconds * NANOS_PER_SECOND
 
   private companion object {
     const val EPSILON: Float = 0.0001f
     const val NANOS_PER_SECOND: Long = 1_000_000_000L
+  }
+
+  private class QueuedDispatcher : CoroutineDispatcher() {
+    private val tasks: ArrayDeque<Runnable> = ArrayDeque()
+
+    override fun dispatch(
+      context: CoroutineContext,
+      block: Runnable
+    ) {
+      tasks.addLast(block)
+    }
+
+    fun runNext() {
+      tasks.removeFirst().run()
+    }
   }
 }

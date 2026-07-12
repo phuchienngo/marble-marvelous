@@ -11,7 +11,6 @@ material {
     { type : sampler2dArray, format : float, precision : medium, name : dayMap },
     { type : sampler2dArray, format : float, precision : medium, name : nightMap },
     { type : sampler2dArray, format : float, precision : medium, name : cloudMaskMap },
-    { type : sampler2dArray, format : float, precision : medium, name : cloudDetailMap },
     { type : float3, name : sunDirection },
     { type : float3, name : userLocation },
     { type : float, name : time },
@@ -36,18 +35,11 @@ vertex {
 }
 
 fragment {
-  const float cloudIntensityDay = 0.62;
-  const float cloudIntensityNight = 0.36;
+  const float cloudIntensityDay = 0.50;
   const float cloudShadowIntensity = 0.40;
-  const float cloudBlurOffset = 0.0016;
-  const float cloudDetailSharpness = 0.85;
-  const float cloudGradientOffset = 0.0024;
-  const float cloudReliefScale = 12.0;
-  const float cloudMaskBoost = 1.70;
-  const float cloudThinBoostMix = 0.65;
-  const float cloudPuffReliefStrength = 0.52;
-  const float cloudPuffOpacityStrength = 0.15;
-  const float cloudWhiteLift = 0.68;
+  const float cloudShadowHeight = 0.00733038;
+  const float cloudMaskBoost = 0.82;
+  const float cloudThinBoostMix = 0.38;
   const float daySharpenAmount = 0.28;
   const float daySharpenOffset = 0.0016;
 
@@ -100,10 +92,6 @@ fragment {
     return texture(materialParams_cloudMaskMap, cubeArrayCoord(normal)).r;
   }
 
-  float sampleCloudDetailTexture(float3 normal) {
-    return texture(materialParams_cloudDetailMap, cubeArrayCoord(normal)).r;
-  }
-
   float3 sampleDaySharp(float3 normal) {
     float3 n = normalize(normal);
     float3 tangent = tangentForNormal(n);
@@ -117,48 +105,6 @@ fragment {
     return clamp(center + (center - blur) * daySharpenAmount, 0.0, 1.0);
   }
 
-  float sampleCloudMask(float3 normal) {
-    float3 n = normalize(normal);
-    float3 tangent = tangentForNormal(n);
-    float3 bitangent = cross(n, tangent);
-    float cloud = sampleCloudMaskTexture(n) * 0.76;
-    cloud += sampleCloudMaskTexture(n + tangent * cloudBlurOffset) * 0.06;
-    cloud += sampleCloudMaskTexture(n - tangent * cloudBlurOffset) * 0.06;
-    cloud += sampleCloudMaskTexture(n + bitangent * cloudBlurOffset) * 0.06;
-    cloud += sampleCloudMaskTexture(n - bitangent * cloudBlurOffset) * 0.06;
-    return cloud;
-  }
-
-  float sampleCloudDetail(float3 normal) {
-    float3 n = normalize(normal);
-    float3 tangent = tangentForNormal(n);
-    float3 bitangent = cross(n, tangent);
-    float center = sampleCloudDetailTexture(n);
-    float blur = sampleCloudDetailTexture(n + tangent * cloudBlurOffset);
-    blur += sampleCloudDetailTexture(n - tangent * cloudBlurOffset);
-    blur += sampleCloudDetailTexture(n + bitangent * cloudBlurOffset);
-    blur += sampleCloudDetailTexture(n - bitangent * cloudBlurOffset);
-    blur *= 0.25;
-    return clamp(center + (center - blur) * cloudDetailSharpness, 0.0, 1.0);
-  }
-
-  float sampleCloudHeightTexture(float3 normal) {
-    float mask = sampleCloudMaskTexture(normal);
-    float detail = sampleCloudDetailTexture(normal);
-    float raisedMask = mix(mask, sqrt(max(mask, 0.0)), cloudThinBoostMix);
-    return raisedMask * mix(0.52, 1.0, detail);
-  }
-
-  float2 sampleCloudGradient(float3 normal, float3 tangent, float3 bitangent) {
-    float horizontal =
-      sampleCloudHeightTexture(normal + tangent * cloudGradientOffset) -
-      sampleCloudHeightTexture(normal - tangent * cloudGradientOffset);
-    float vertical =
-      sampleCloudHeightTexture(normal + bitangent * cloudGradientOffset) -
-      sampleCloudHeightTexture(normal - bitangent * cloudGradientOffset);
-    return float2(horizontal, vertical);
-  }
-
   float boostThinCloudMask(float mask) {
     return mix(mask, sqrt(mask), cloudThinBoostMix);
   }
@@ -167,78 +113,39 @@ fragment {
     return normalize(float3(normal.z, normal.x, normal.y));
   }
 
-  float3 cloudShadowLookup(float3 normal) {
-    float angle = 0.00733038;
-    float cosine = cos(angle);
-    float sine = sin(angle);
-    return normalize(float3(normal.x, normal.y * cosine + normal.z * sine, -normal.y * sine + normal.z * cosine));
-  }
-
   void material(inout MaterialInputs material) {
     prepareMaterial(material);
 
     float3 lookup = normalize(variable_lookupNormal.xyz);
     float3 cloudLookup = cloudLookupTransform(lookup);
-    float3 shadowLookup = cloudShadowLookup(cloudLookup);
     float3 eyeVector = normalize(getWorldViewVector());
     float3 worldNormal = normalize(getWorldPosition());
     float3 lightVector = normalize(materialParams.sunDirection);
     float eyeLight = abs(dot(worldNormal, eyeVector));
     float lightDirection = dot(lookup, lightVector);
     float inverseLightDirection = 1.0 - lightDirection;
-
-    float weatherMask = sampleCloudMask(cloudLookup);
-    float weatherShadowMask = sampleCloudMask(shadowLookup);
-    float boostedWeatherMask = boostThinCloudMask(weatherMask);
-    float boostedWeatherShadowMask = boostThinCloudMask(weatherShadowMask);
-    float cloudDetail = sampleCloudDetail(cloudLookup);
-    float cloudShadowDetail = sampleCloudDetail(shadowLookup);
-    float cloudColor = clamp(boostedWeatherMask * mix(0.58, 1.0, cloudDetail) * cloudMaskBoost, 0.0, 1.0);
-    float cloudShadow = clamp(boostedWeatherShadowMask * mix(0.58, 1.0, cloudShadowDetail) * cloudMaskBoost, 0.0, 1.0);
-    float cloudCoverage = smoothstep(0.04, 0.64, cloudColor);
-    float cloudShadowCoverage = smoothstep(0.06, 0.58, cloudShadow);
-    float cloudPuffCore = smoothstep(0.35, 0.82, cloudCoverage);
-    float cloudPuffDetail = (cloudDetail - 0.50) * cloudPuffCore;
-    float cloudRelief = clamp((cloudColor - cloudShadow) * 2.35 + 0.50 + cloudPuffDetail * cloudPuffReliefStrength, 0.0, 1.0);
-    float cloudSun = smoothstep(-0.20, 0.80, lightDirection);
-    float3 cloudTangent = tangentForNormal(cloudLookup);
-    float3 cloudBitangent = cross(cloudLookup, cloudTangent);
-    float2 cloudGradient = sampleCloudGradient(cloudLookup, cloudTangent, cloudBitangent);
-    float3 cloudNormal = normalize(
-      cloudLookup - cloudTangent * cloudGradient.x * cloudReliefScale -
-      cloudBitangent * cloudGradient.y * cloudReliefScale
-    );
     float3 cloudLightVector = cloudLookupTransform(lightVector);
-    float cloudDirectionalLight = 0.72 + 0.28 * smoothstep(-0.15, 0.85, dot(cloudNormal, cloudLightVector));
-    float cloudInteriorRelief = mix(0.88, 1.08, smoothstep(0.20, 0.80, cloudDetail));
-    float cloudEdge = 4.0 * cloudCoverage * (1.0 - cloudCoverage);
-    float silverLining =
-      cloudEdge * pow(1.0 - eyeLight, 3.0) * smoothstep(-0.20, 0.55, lightDirection);
-
-    float dayCloudOpacity = cloudIntensityDay * cloudCoverage * (0.55 + cloudRelief * 0.35 + cloudPuffCore * cloudDetail * cloudPuffOpacityStrength);
-    float nightCloudOpacity = cloudIntensityNight * cloudCoverage * (0.70 + cloudRelief * 0.25);
-    float3 dayCloudColor = mix(float3(1.0), float3(0.96, 0.97, 0.99), (1.0 - cloudRelief) * 0.08);
-    dayCloudColor = mix(dayCloudColor, float3(1.0), cloudWhiteLift);
-    dayCloudColor *= cloudDirectionalLight * cloudInteriorRelief * (0.97 + cloudRelief * 0.12 + cloudSun * 0.04);
-    dayCloudColor += float3(0.82, 0.91, 1.0) * silverLining * 0.16;
-    dayCloudColor = clamp(dayCloudColor, 0.0, 1.0);
-    float3 nightCloudColor =
-      mix(float3(0.28, 0.31, 0.38), float3(0.36, 0.40, 0.48), cloudRelief) * cloudInteriorRelief;
+    float3 tangentLight = cloudLightVector - cloudLookup * dot(cloudLookup, cloudLightVector);
+    float tangentLightLength = length(tangentLight);
+    float3 shadowLookup =
+      tangentLightLength > 0.0001
+        ? normalize(cloudLookup + tangentLight / tangentLightLength * cloudShadowHeight)
+        : cloudLookup;
+    float cloudShadowDensity =
+      boostThinCloudMask(sampleCloudMaskTexture(shadowLookup)) * cloudMaskBoost;
+    float cloudShadowCoverage = smoothstep(0.14, 0.90, cloudShadowDensity);
 
     float daylight = smoothstep(-0.12, 0.30, lightDirection);
     float night = 1.0 - smoothstep(-0.14, 0.22, lightDirection);
     float dayShade = 0.18 + max(lightDirection, 0.0) * 0.96;
     float3 daySurface = sampleDaySharp(lookup) * dayShade;
     daySurface *= 1.0 - cloudShadowCoverage * cloudIntensityDay * cloudShadowIntensity;
-    daySurface = mix(daySurface, dayCloudColor, dayCloudOpacity * smoothstep(-0.18, 0.28, lightDirection));
 
     float3 nightSurface = sampleNightTexture(lookup);
     float nightRim = smoothstep(0.0, 0.8, 1.0 - eyeLight);
     nightSurface -= nightRim * 0.05;
     nightSurface *= smoothstep(0.0, 1.0, eyeLight);
     nightSurface *= 0.82 + night * 0.18;
-    float nightCloudVisibility = 0.42 + eyeLight * 0.58;
-    nightSurface = mix(nightSurface, nightCloudColor * nightCloudVisibility, nightCloudOpacity);
 
     float limbNight = smoothstep(0.48, 0.95, 1.0 - eyeLight) * smoothstep(0.20, 0.95, inverseLightDirection);
     float nightMix = max(1.0 - daylight, limbNight * 0.42);
@@ -250,7 +157,7 @@ fragment {
 
     float3 reflectedLight = normalize(reflect(-lightVector, lookup));
     float specular = smoothstep(0.72, 1.10, dot(reflectedLight, eyeVector)) * 0.22;
-    specular *= 1.0 - dayCloudOpacity * 0.70;
+    specular *= 1.0 - cloudShadowCoverage * 0.70;
     specular *= smoothstep(-1.5, 1.0, daySurface.b - daySurface.r - daySurface.g);
     base += float3(1.0, 0.72, 0.52) * specular * max(lightDirection, 0.0);
 
@@ -260,7 +167,7 @@ fragment {
     edgeGlow *= max(lightDirection, 0.0);
     float edgeMix = smoothstep(0.1, 0.38, eyeLight);
     float3 atmosphere = mix(float3(0.38, 0.69, 0.95), float3(0.68, 0.82, 0.94), edgeMix);
-    float atmosphereOverCloud = 1.0 - cloudCoverage * 0.72;
+    float atmosphereOverCloud = 1.0 - cloudShadowCoverage * 0.72;
     base = mix(base, atmosphere, edgeGlow * 0.55 * atmosphereOverCloud);
 
     // Aurora: an animated curtain around the auroral oval on the night side. The

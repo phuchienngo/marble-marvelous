@@ -20,17 +20,31 @@ internal class FilamentEarthTextures private constructor(
   private val nightMap: Texture,
   private var cloudMaskMap: Texture,
   private val cloudDetailMap: Texture,
-  private val sampler: TextureSampler
+  private val surfaceSampler: TextureSampler,
+  private val cloudMaskSampler: TextureSampler,
+  private val cloudDetailSampler: TextureSampler
 ) {
   // CRC of the six cached faces currently uploaded as the cloud mask. Lets a
   // repeat reload skip the GPU rebuild/swap when the faces are unchanged.
   private var cloudMaskSignature: Long? = null
 
   fun bind(materialInstance: MaterialInstance) {
-    materialInstance.setParameter(FilamentEarthMaterial.DAY_MAP, dayMap, sampler)
-    materialInstance.setParameter(FilamentEarthMaterial.NIGHT_MAP, nightMap, sampler)
-    materialInstance.setParameter(FilamentEarthMaterial.CLOUD_MASK_MAP, cloudMaskMap, sampler)
-    materialInstance.setParameter(FilamentEarthMaterial.CLOUD_DETAIL_MAP, cloudDetailMap, sampler)
+    materialInstance.setParameter(FilamentEarthMaterial.DAY_MAP, dayMap, surfaceSampler)
+    materialInstance.setParameter(FilamentEarthMaterial.NIGHT_MAP, nightMap, surfaceSampler)
+    materialInstance.setParameter(
+      FilamentEarthMaterial.CLOUD_MASK_MAP,
+      cloudMaskMap,
+      cloudMaskSampler
+    )
+  }
+
+  fun bindCloudShell(materialInstance: MaterialInstance) {
+    bindCloudMask(materialInstance, cloudMaskMap)
+    materialInstance.setParameter(
+      FilamentEarthMaterial.CLOUD_DETAIL_MAP,
+      cloudDetailMap,
+      cloudDetailSampler
+    )
   }
 
   fun destroy(engine: Engine) {
@@ -43,7 +57,7 @@ internal class FilamentEarthTextures private constructor(
   }
 
   /**
-   * Swaps in the latest cached OpenWeather cloud faces. The blocking file read
+   * Swaps in the latest cached NASA cloud faces. The blocking file read
    * runs off the main thread (see [readCloudFacesBuffer]); the Filament texture
    * is then built back on the caller's (render) thread. Returns false when no
    * cached faces are available yet, leaving the current mask untouched.
@@ -51,7 +65,8 @@ internal class FilamentEarthTextures private constructor(
   suspend fun reloadCloudMask(
     context: Context,
     engine: Engine,
-    materialInstance: MaterialInstance
+    surfaceMaterialInstance: MaterialInstance,
+    cloudMaterialInstance: MaterialInstance
   ): Boolean {
     val cachedFaces: CachedFaces = readCloudFacesBuffer(context) ?: return false
     if (cachedFaces.checksum == cloudMaskSignature) {
@@ -63,12 +78,15 @@ internal class FilamentEarthTextures private constructor(
     val previousCloudMaskMap: Texture = cloudMaskMap
 
     try {
-      materialInstance.setParameter(
-        FilamentEarthMaterial.CLOUD_MASK_MAP,
-        newCloudMaskMap,
-        sampler
-      )
+      bindCloudMask(surfaceMaterialInstance, newCloudMaskMap)
+      bindCloudMask(cloudMaterialInstance, newCloudMaskMap)
     } catch (throwable: Throwable) {
+      try {
+        bindCloudMask(surfaceMaterialInstance, previousCloudMaskMap)
+        bindCloudMask(cloudMaterialInstance, previousCloudMaskMap)
+      } catch (restoreFailure: Throwable) {
+        throwable.addSuppressed(restoreFailure)
+      }
       engine.destroyTexture(newCloudMaskMap)
       throw throwable
     }
@@ -81,9 +99,20 @@ internal class FilamentEarthTextures private constructor(
     return true
   }
 
+  private fun bindCloudMask(
+    materialInstance: MaterialInstance,
+    texture: Texture
+  ) {
+    materialInstance.setParameter(
+      FilamentEarthMaterial.CLOUD_MASK_MAP,
+      texture,
+      cloudMaskSampler
+    )
+  }
+
   companion object {
     // The cloud mask starts on the bundled detail map and is upgraded to the
-    // real OpenWeather faces asynchronously via reloadCloudMask, so construction
+    // real NASA faces asynchronously via reloadCloudMask, so construction
     // never blocks the render thread on the cached-face file read.
     fun create(
       context: Context,
@@ -114,12 +143,28 @@ internal class FilamentEarthTextures private constructor(
         nightMap = nightMap,
         cloudMaskMap = cloudDetailMap,
         cloudDetailMap = cloudDetailMap,
-        sampler =
+        surfaceSampler =
           TextureSampler(
             TextureSampler.MinFilter.LINEAR,
             TextureSampler.MagFilter.LINEAR,
             TextureSampler.WrapMode.CLAMP_TO_EDGE
-          )
+          ),
+        cloudMaskSampler =
+          TextureSampler(
+            TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
+            TextureSampler.MagFilter.LINEAR,
+            TextureSampler.WrapMode.CLAMP_TO_EDGE
+          ).apply {
+            setAnisotropy(CLOUD_DETAIL_ANISOTROPY)
+          },
+        cloudDetailSampler =
+          TextureSampler(
+            TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
+            TextureSampler.MagFilter.LINEAR,
+            TextureSampler.WrapMode.CLAMP_TO_EDGE
+          ).apply {
+            setAnisotropy(CLOUD_DETAIL_ANISOTROPY)
+          }
       )
     }
 
@@ -173,15 +218,25 @@ internal class FilamentEarthTextures private constructor(
         Texture
           .Builder()
           .sampler(Texture.Sampler.SAMPLER_2D_ARRAY)
-          .usage(Texture.Usage.UPLOADABLE or Texture.Usage.SAMPLEABLE)
+          .usage(
+            Texture.Usage.UPLOADABLE or
+              Texture.Usage.SAMPLEABLE or
+              Texture.Usage.GEN_MIPMAPPABLE
+          )
           .format(Texture.InternalFormat.R8)
           .width(FACE_SIZE)
           .height(FACE_SIZE)
           .depth(FACE_NAMES.size)
-          .levels(1)
+          .levels(mipLevelCount(FACE_SIZE))
           .build(engine)
       texture.setTextureArrayImage(engine, uploadBuffer)
+      texture.generateMipmaps(engine)
       return texture
+    }
+
+    internal fun mipLevelCount(faceSize: Int): Int {
+      require(faceSize > 0)
+      return Int.SIZE_BITS - Integer.numberOfLeadingZeros(faceSize)
     }
 
     /** CRC over the buffer's remaining bytes; restores its position afterwards. */
@@ -245,8 +300,9 @@ internal class FilamentEarthTextures private constructor(
     )
 
     private val FACE_NAMES: Array<String> = arrayOf("px", "nx", "py", "ny", "pz", "nz")
-    private const val FACE_SIZE: Int = 512
+    private const val FACE_SIZE: Int = 1024
+    private const val CLOUD_DETAIL_ANISOTROPY: Float = 4.0f
     private const val RAW_FACE_EXTENSION: String = ".r8"
-    private const val RAW_FACE_VERSION: String = "-shape-v2"
+    private const val RAW_FACE_VERSION: String = "-nasa-v5"
   }
 }

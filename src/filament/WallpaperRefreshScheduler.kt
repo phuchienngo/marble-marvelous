@@ -2,9 +2,8 @@ package com.phuchienngo.marblemarvelous.filament
 
 import android.content.Context
 import android.util.Log
-import com.phuchienngo.marblemarvelous.di.OpenWeatherApiKey
 import com.phuchienngo.marblemarvelous.space.AuroraActivityProvider
-import com.phuchienngo.marblemarvelous.weather.OpenWeatherClouds
+import com.phuchienngo.marblemarvelous.weather.NasaClouds
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -38,8 +37,7 @@ internal class WallpaperRefreshScheduler
 @Inject
 constructor(
   @param:ApplicationContext private val context: Context,
-  private val openWeatherClouds: OpenWeatherClouds,
-  @param:OpenWeatherApiKey private val openWeatherApiKey: String,
+  private val nasaClouds: NasaClouds,
   private val auroraActivityProvider: AuroraActivityProvider
 ) {
   private val scope: CoroutineScope =
@@ -89,17 +87,14 @@ constructor(
   }
 
   private suspend fun refreshClouds() {
-    if (openWeatherApiKey.isBlank()) {
-      return
-    }
     val generated: Boolean =
       try {
-        openWeatherClouds.generateCubeFaces(context, openWeatherApiKey)
+        nasaClouds.generateCubeFaces(context)
       } catch (throwable: Throwable) {
         if (throwable is CancellationException) {
           throw throwable
         }
-        Log.e(TAG, "Failed to generate OpenWeather cloud cache", throwable)
+        Log.e(TAG, "Failed to generate NASA cloud cache", throwable)
         return
       }
     if (generated) {

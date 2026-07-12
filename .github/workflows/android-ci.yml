@@ -63,7 +63,6 @@ jobs:
           build --repo_env=ANDROID_HOME=$ANDROID_SDK_ROOT
           build --repo_env=ANDROID_NDK_HOME=$ANDROID_NDK_HOME
           build --action_env=JAVA_HOME=$JAVA_HOME
-          build --action_env=OPENWEATHER_API_KEY=dummy_openweather_key_for_ci
           EOF
 
       - name: Run unit tests

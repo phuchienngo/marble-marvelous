@@ -18,6 +18,8 @@ import javax.inject.Inject
 
 @AndroidEntryPoint(WallpaperService::class)
 class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
+  private val rendererCleanup = FilamentRendererCleanup()
+
   @Inject
   internal lateinit var refreshScheduler: WallpaperRefreshScheduler
 
@@ -207,7 +209,7 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
         if (throwable is CancellationException) {
           throw throwable
         }
-        Log.e(TAG, "Failed to reload OpenWeather cloud texture", throwable)
+        Log.e(TAG, "Failed to reload NASA cloud texture", throwable)
       }
     }
 
@@ -259,10 +261,9 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
     private fun destroyRenderer() {
       val currentRenderer: FilamentEarthRenderer = renderer ?: return
       renderer = null
-      try {
+      rendererCleanup.submit destroyRenderer@{
         currentRenderer.destroy()
-      } catch (throwable: Throwable) {
-        Log.e(TAG, "Failed to destroy Filament renderer", throwable)
+        return@destroyRenderer
       }
     }
 
@@ -290,28 +291,5 @@ class FilamentWallpaperService : Hilt_FilamentWallpaperService() {
     private const val TAG: String = "FilamentWallpaper"
     private const val TARGET_FPS: Int = 18
     private const val FRAME_INTERVAL_MILLIS: Long = MILLIS_PER_SECOND / TARGET_FPS
-  }
-}
-
-internal class WallpaperRefreshRegistration(
-  private val start: () -> Unit,
-  private val stop: () -> Unit
-) {
-  private var registered = false
-
-  fun updateVisibility(visible: Boolean) {
-    if (visible == registered) {
-      return
-    }
-    registered = visible
-    if (visible) {
-      start()
-    } else {
-      stop()
-    }
-  }
-
-  fun close() {
-    updateVisibility(visible = false)
   }
 }

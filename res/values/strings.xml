@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Marvelous Marble</string>
-    <string name="globe_wallpaper_description">Inspired by Apollo 17\'s Blue Marble, view your location from space with real-time cloud data from OpenWeather API.</string>
+    <string name="globe_wallpaper_description">Inspired by Apollo 17\'s Blue Marble, view your location from space with satellite cloud data from NASA GIBS.</string>
     <string name="globe_wallpaper_name">Marvelous Marble</string>
-    <string name="google_earth_weather_collection">OpenWeather API, Living Universe</string>
+    <string name="google_earth_weather_collection">NASA GIBS, Living Universe</string>
     <string name="permissions_activity">Write Permissions</string>
     <string name="permissions_request_message">Preparing location permission request</string>
 </resources>
